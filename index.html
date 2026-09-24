@@ -1,0 +1,3284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Minimap — фронтенд редактор by wayz1t</title>
+<style>
+  :root {
+    --panel-bg: rgba(21, 24, 32, 0.92);
+    --panel-bg-solid: #1e2230;
+    --panel-border: #262c38;
+    --panel-border-soft: #2e3444;
+    --panel-border-hover: #4a5570;
+    --panel-inner-bg: rgba(14, 16, 21, 0.85);
+    --panel-inner-border: #1e2230;
+    --panel-text-dim: #666;
+    --panel-text: #aaa;
+    --panel-head: #8ab4f8;
+    --panel-accent-text: #9fe0a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: #0e1015; }
+  body {
+    margin: 0; padding: 20px;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh;
+    transition: background-color .35s ease;
+  }
+  h1 { font-size: 18px; font-weight: 500; color: var(--panel-head); margin: 0 0 4px; position: relative; z-index: 1; }
+  .sub { font-size: 12px; color: #888; margin-bottom: 14px; text-align:center; max-width: 900px; line-height: 1.5; position: relative; z-index: 1; }
+  .sub code { color: #ffd97a; }
+
+  #web-bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    background: transparent;
+    transition: background-color .4s ease;
+  }
+
+  .layout {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+    max-width: 1780px;
+    position: relative;
+    z-index: 1;
+  }
+  .main-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .sidebar {
+    flex: 0 0 520px;
+    width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .sidebar::-webkit-scrollbar { width: 8px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--panel-border-soft); border-radius: 4px; }
+  .sidebar::-webkit-scrollbar-thumb:hover { background: var(--panel-border-hover); }
+
+  .collapsible {
+    margin-bottom: 0;
+    padding: 8px 12px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    width: 100%;
+    transition: transform .15s, box-shadow .15s, opacity .15s, background-color .3s, border-color .3s;
+  }
+  .collapsible.dragging {
+    opacity: 0.9;
+    box-shadow: 0 8px 24px rgba(0,0,0,.7);
+    z-index: 1000;
+    cursor: grabbing;
+  }
+  .collapsible .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--panel-text-dim);
+    padding: 2px 0;
+    transition: color .15s;
+  }
+  .collapsible .panel-header:hover { color: var(--panel-accent-text); }
+  .collapsible .panel-header .toggle-icon {
+    display: inline-block;
+    width: 12px;
+    color: var(--panel-head);
+    transition: transform .2s;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .collapsible.collapsed .panel-header .toggle-icon {
+    transform: rotate(-90deg);
+  }
+  .collapsible .panel-header .drag-handle {
+    cursor: grab;
+    color: var(--panel-border-hover);
+    font-size: 14px;
+    line-height: 1;
+    letter-spacing: -2px;
+    padding: 0 2px;
+    user-select: none;
+    transition: color .15s;
+  }
+  .collapsible .panel-header .drag-handle:hover { color: var(--panel-head); }
+  .collapsible .panel-header .drag-handle:active { cursor: grabbing; }
+  .collapsible .panel-body {
+    margin-top: 8px;
+    overflow: hidden;
+    transition: max-height .25s ease, opacity .2s ease;
+    max-height: 3000px;
+    opacity: 1;
+  }
+  .collapsible.collapsed .panel-body {
+    max-height: 0 !important;
+    opacity: 0;
+    margin-top: 0;
+  }
+
+  .panel-placeholder {
+    border: 2px dashed var(--panel-head);
+    background: rgba(74,138,255,.08);
+    border-radius: 6px;
+    height: 30px;
+    width: 100%;
+    transition: height .15s;
+  }
+
+  .toolbar {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 10px; justify-content: center; align-items: center;
+    max-width: 1120px;
+  }
+  .toolbar button {
+    background: var(--panel-bg-solid);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--panel-border-soft); color: #ccc;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; transition: all .15s;
+  }
+  .toolbar button:hover { background: var(--panel-bg); border-color: var(--panel-border-hover); }
+  .toolbar button.active { background: #2d6cdf; border-color: #4a8aff; color: #fff; }
+  .toolbar button.green { background: #1e4d2a; border-color: #3cb45a; color: #c8f0d0; }
+  .toolbar button.green:hover { background: #2a5e3a; }
+  .toolbar button.orange { background: #4d3a1e; border-color: #d99a3c; color: #f0dcc0; }
+  .toolbar button.orange:hover { background: #5e472a; }
+  .toolbar button.blue { background: #1e3a4d; border-color: #3c9ad9; color: #c0e0f0; }
+  .toolbar button.blue:hover { background: #2a4a5e; }
+  .toolbar button.red { background: #4d1e1e; border-color: #d93c3c; color: #f0c0c0; }
+  .toolbar button.red:hover { background: #5e2a2a; }
+  .toolbar button.purple { background: #3a1e4d; border-color: #9a3cd9; color: #e0c0f0; }
+  .toolbar button.purple:hover { background: #4a2a5e; }
+  .toolbar button.yellow { background: #4d4a1e; border-color: #d9d93c; color: #f0f0c0; }
+  .toolbar button.yellow:hover { background: #5e5a2a; }
+  .toolbar .sep { width: 1px; height: 22px; background: var(--panel-border-soft); margin: 0 4px; }
+  .toolbar .label { font-size: 11px; color: var(--panel-text-dim); margin-right: 4px; font-family: monospace; }
+  .toolbar input[type="file"] { display: none; }
+  .zoom-display {
+    display: inline-block; min-width: 56px;
+    padding: 4px 8px; background: var(--panel-inner-bg);
+    border: 1px solid var(--panel-border-soft); border-radius: 4px;
+    font-family: monospace; font-size: 12px;
+    color: #ffd97a; text-align: center;
+  }
+
+  .status-bar {
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 14px; margin-bottom: 10px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    font-family: monospace; font-size: 11px;
+    color: #888;
+    width: 100%;
+    max-width: 1120px;
+    transition: background-color .3s, border-color .3s;
+  }
+  .status-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+  .status-bar .dot.on { background: #3cb45a; box-shadow: 0 0 6px #3cb45a; }
+  .status-bar .name { color: var(--panel-accent-text); }
+  .status-bar .size { color: var(--panel-text-dim); }
+  .status-bar .sel { color: #ffd97a; margin-left: auto; font-family: monospace; }
+  .status-bar.ready { border-color: #3cb45a; background: rgba(14, 26, 16, 0.92); }
+
+  .elements-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .elem-row {
+    display: flex; align-items: center; gap: 6px;
+    font-family: monospace; font-size: 11px;
+    padding: 4px 6px; border-radius: 4px;
+    background: var(--panel-inner-bg);
+    border: 1px solid var(--panel-inner-border);
+    transition: all .15s; cursor: pointer; user-select: none;
+    min-width: 0;
+  }
+  .elem-row:hover { border-color: var(--panel-border-hover); }
+  .elem-row.enabled { border-color: var(--panel-border-soft); background: var(--panel-bg-solid); }
+  .elem-row.fixed { border-color: var(--panel-border-hover); background: var(--panel-bg-solid); }
+  .elem-row.passive { opacity: 0.75; }
+  .elem-row.selected { border-color: #ffcf5c; background: #1e1a10; box-shadow: 0 0 0 1px #ffcf5c inset; }
+  .elem-row input[type="checkbox"] { cursor: pointer; margin: 0; accent-color: #2d6cdf; }
+  .elem-row .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+  .elem-row .name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--panel-text); min-width: 0; }
+  .elem-row.enabled .name { color: #fff; }
+  .elem-row.selected .name { color: #ffcf5c; }
+  .elem-row .tag {
+    font-size: 9px; color: var(--panel-head);
+    background: rgba(74,138,255,.15);
+    padding: 1px 5px; border-radius: 3px;
+    border: 1px solid rgba(74,138,255,.4);
+  }
+  .elem-row .tag.passive { color: #999; background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.2); }
+  .elem-row .tag.sel { color: #ffcf5c; background: rgba(255,207,92,.15); border-color: rgba(255,207,92,.5); }
+  .elem-row .coord { font-size: 10px; color: var(--panel-text-dim); white-space: nowrap; }
+  .elem-row.enabled .coord { color: var(--panel-head); }
+  .elem-row.selected .coord { color: #ffd97a; }
+
+  .manual-panel .inputs {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 0.4fr;
+    gap: 4px 6px; align-items: center;
+  }
+  .manual-panel .head { color: var(--panel-text-dim); padding: 2px 4px; font-size: 10px; }
+  .manual-panel .ename { color: var(--panel-accent-text); padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .manual-panel input {
+    background: var(--panel-inner-bg); color: #fff; border: 1px solid var(--panel-border-soft);
+    border-radius: 3px; padding: 4px 7px;
+    font-family: monospace; font-size: 11px;
+    width: 100%; outline: none; min-width: 0;
+  }
+  .manual-panel input:focus { border-color: var(--panel-head); box-shadow: 0 0 0 2px rgba(74,138,255,.2); }
+  .manual-actions { margin-top: 8px; display: flex; gap: 8px; justify-content: flex-end; }
+  .manual-actions button {
+    background: #2d6cdf; border: 1px solid #4a8aff; color: #fff;
+    padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;
+  }
+  .manual-actions button:hover { background: #3d7cef; }
+  .manual-actions button.secondary { background: var(--panel-bg-solid); border-color: var(--panel-border-soft); color: #ccc; }
+  .manual-actions button.secondary:hover { background: var(--panel-bg); border-color: var(--panel-border-hover); }
+  .manual-actions button.purple { background: #3a1e4d; border-color: #9a3cd9; color: #e0c0f0; }
+  .manual-actions button.purple:hover { background: #4a2a5e; }
+
+  .boxes-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .box-card {
+    background: var(--panel-inner-bg); border: 1px solid var(--panel-inner-border);
+    border-radius: 4px; padding: 6px 10px;
+    cursor: pointer; transition: all .15s;
+  }
+  .box-card:hover { border-color: var(--panel-border-hover); }
+  .box-card.active { border-color: var(--panel-head); background: var(--panel-bg-solid); }
+  .box-card.has-box { border-color: #3cb45a; }
+  .box-card.active.has-box { border-color: #3cb45a; background: rgba(14, 26, 16, 0.9); }
+  .box-card .fmt-name {
+    font-size: 11px; color: #fff; margin-bottom: 2px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .box-card .fmt-name .dot { width: 8px; height: 8px; border-radius: 50%; background: #3cb45a; display: none; }
+  .box-card.has-box .fmt-name .dot { display: block; }
+  .box-card .vals { color: #ffd97a; line-height: 1.5; white-space: nowrap; font-size: 10px; }
+  .box-card .vals .key { color: #888; }
+  .box-card.empty .vals { color: #444; }
+  .box-card .del { font-size: 10px; color: #ff6b6b; margin-top: 4px; cursor: pointer; display: none; }
+  .box-card.has-box .del { display: inline-block; }
+  .box-card .del:hover { text-decoration: underline; }
+
+  .style-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .style-grid label {
+    display: grid;
+    grid-template-columns: 1fr 130px 54px;
+    align-items: center; gap: 8px;
+    color: var(--panel-text); font-size: 10px;
+  }
+  .style-grid input[type="range"] { width: 100%; accent-color: #4a8aff; }
+  .style-grid .val { color: #ffd97a; text-align: right; font-size: 10px; }
+
+  .color-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    flex-wrap: wrap;
+  }
+  .color-picker-row label {
+    color: var(--panel-text); font-size: 11px; font-family: monospace;
+    flex: 1 1 auto;
+  }
+  .color-picker-row input[type="color"] {
+    width: 44px; height: 26px;
+    border: 1px solid var(--panel-border-soft); border-radius: 4px;
+    background: var(--panel-inner-bg); cursor: pointer;
+    padding: 0;
+  }
+  .color-picker-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .color-picker-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+  .color-picker-row .btn-mini {
+    background: var(--panel-bg-solid); border: 1px solid var(--panel-border-soft); color: #ccc;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+  }
+  .color-picker-row .btn-mini:hover { background: var(--panel-bg); border-color: var(--panel-border-hover); }
+  .color-picker-value {
+    color: #ffd97a; font-family: monospace; font-size: 11px;
+    min-width: 70px; text-align: right;
+  }
+  .preset-colors {
+    display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px;
+  }
+  .preset-colors .preset {
+    width: 26px; height: 26px; border-radius: 4px;
+    border: 1px solid var(--panel-border-soft); cursor: pointer;
+    transition: transform .1s;
+    position: relative;
+    overflow: hidden;
+  }
+  .preset-colors .preset:hover { transform: scale(1.12); border-color: var(--panel-head); }
+  .preset-colors .preset::before {
+    content: ""; position: absolute; inset: 0;
+    background: var(--p-bg);
+  }
+  .preset-colors .preset::after {
+    content: ""; position: absolute; right: 2px; bottom: 2px;
+    width: 10px; height: 10px; border-radius: 2px;
+    border: 1px solid rgba(0,0,0,.6);
+    background: var(--p-web);
+  }
+
+  .screen {
+    position: relative;
+    width: 1120px; max-width: 95vw;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid #2a2f3a;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,.6);
+    user-select: none;
+    cursor: default;
+    transition: background-color .25s ease;
+  }
+  .screen.panning { cursor: grabbing; }
+  .screen.cursor-cross { cursor: crosshair; }
+  .screen.cursor-pan { cursor: grab; }
+  .screen.panning.cursor-pan { cursor: grabbing; }
+
+  .viewport { position: absolute; inset: 0; overflow: hidden; }
+  .frame {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #0a0b0e;
+    transform-origin: 0 0;
+    transition: background-color .25s ease;
+  }
+  .bg-layer {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    pointer-events: none; z-index: 0;
+  }
+  .frame.no-bg .bg-layer { background-image: none !important; }
+  .dim-layer { position: absolute; inset: 0; background: rgba(10, 12, 20, .45); pointer-events: none; z-index: 1; }
+  .frame.no-dim .dim-layer { opacity: 0; }
+  .frame-label {
+    position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: #e0e8ff; font-family: monospace;
+    pointer-events: none; z-index: 5;
+    background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 3px; white-space: nowrap;
+  }
+  .grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,.10) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.10) 1px, transparent 1px);
+    background-size: 10% 10%;
+    pointer-events: none; z-index: 2;
+  }
+  .grid-fine {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 1% 1%;
+    pointer-events: none; z-index: 2;
+  }
+  .ruler-x, .ruler-y { position: absolute; pointer-events: none; z-index: 4; font-family: monospace; font-size: 9px; color: #888; }
+  .ruler-x { top: 0; left: 0; right: 0; height: 14px; background: linear-gradient(to bottom, rgba(0,0,0,.6), transparent); }
+  .ruler-y { top: 0; left: 0; bottom: 0; width: 26px; background: linear-gradient(to right, rgba(0,0,0,.6), transparent); }
+  .ruler-x .tick, .ruler-y .tick { position: absolute; background: #555; }
+  .ruler-x .tick { top: 0; width: 1px; height: 6px; }
+  .ruler-y .tick { left: 0; height: 1px; width: 6px; }
+  .ruler-x .tick-label { position: absolute; top: 6px; transform: translateX(-50%); }
+  .ruler-y .tick-label { position: absolute; left: 8px; transform: translateY(-50%); }
+
+  /* -------- ПРИЦЕЛ (без точки в центре) -------- */
+  .crosshair {
+    position: absolute; left: 50%; top: 50%;
+    width: 32px; height: 32px; margin: -16px 0 0 -16px;
+    pointer-events: none; z-index: 30;
+  }
+  .crosshair.off { display: none; }
+  .crosshair::before, .crosshair::after {
+    content: ""; position: absolute; background: #ff3b3b;
+    box-shadow: 0 0 4px rgba(255,59,59,.9), 0 0 8px rgba(0,0,0,.8);
+  }
+  .crosshair::before { left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+  .crosshair::after { top: 50%; left: 0; right: 0; height: 2px; margin-top: -1px; }
+
+  /* -------- МЕТКА ЦЕНТРА — только крестик -------- */
+  .el-mark { position: absolute; pointer-events: none; z-index: 50; }
+  .el-mark.center {
+    left: 50%; top: 50%;
+    width: 0; height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+  .el-mark.center::before, .el-mark.center::after {
+    content: ""; position: absolute;
+    background: #ff3b3b;
+    box-shadow: 0 0 4px rgba(255,59,59,.9), 0 0 8px rgba(0,0,0,.8);
+  }
+  .el-mark.center::before {
+    left: 0; top: calc(-1 * var(--center-half, 6px));
+    width: 1px;
+    height: calc(var(--center-half, 6px) * 2);
+    margin-left: -0.5px;
+  }
+  .el-mark.center::after {
+    top: 0; left: calc(-1 * var(--center-half, 6px));
+    height: 1px;
+    width: calc(var(--center-half, 6px) * 2);
+    margin-top: -0.5px;
+  }
+
+  /* -------- ТОЧКИ РЁБЕР — центр ровно на границе -------- */
+  .el-mark.edge {
+    width: 6px; height: 6px;
+    border-radius: 50%; background: #ffcf5c;
+    box-shadow: 0 0 0 1.5px rgba(0,0,0,.85), 0 0 4px rgba(255,207,92,.7);
+    z-index: 51;
+  }
+  .el-mark.edge.top    { left: 50%; top: 0;    transform: translate(-50%, -50%); }
+  .el-mark.edge.bottom { left: 50%; top: 100%; transform: translate(-50%, -50%); }
+  .el-mark.edge.left   { left: 0;   top: 50%;  transform: translate(-50%, -50%); }
+  .el-mark.edge.right  { left: 100%;top: 50%;  transform: translate(-50%, -50%); }
+
+  .box {
+    position: absolute; border: 2px solid #3cb45a;
+    background: rgba(60,180,90,.15);
+    pointer-events: none; z-index: 10;
+  }
+  .box-label {
+    position: absolute; top: -22px; left: 0;
+    background: #3cb45a; color: #fff;
+    font-family: monospace; font-size: 10px;
+    padding: 3px 7px; border-radius: 3px;
+    white-space: nowrap; line-height: 1.3;
+  }
+  .box-label .key { color: #c8e8d0; }
+  .predicted-box {
+    position: absolute; border: 2px dashed var(--panel-head);
+    background: rgba(74,138,255,.10);
+    pointer-events: none; z-index: 9;
+  }
+  .predicted-box-label {
+    position: absolute; top: -18px; left: 0;
+    background: #4a8aff; color: #fff;
+    font-family: monospace; font-size: 10px;
+    padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+  .el { position: absolute; border: 1px solid; z-index: 10; }
+  .el-label {
+    position: absolute; font-size: 9px; font-family: monospace;
+    white-space: nowrap; pointer-events: none;
+    text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 3px #000;
+  }
+  .el.draggable { cursor: grab; }
+  .el.draggable:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
+  .el.draggable.dragging { cursor: grabbing; z-index: 100; box-shadow: 0 0 0 2px #fff, 0 0 20px rgba(255,255,255,.5); }
+  .el.group-selected { box-shadow: 0 0 0 2px #ffcf5c, 0 0 15px rgba(255,207,92,.6); }
+  .c-minimap       { background: rgba(60,180,90,.45);   border-color: #3cb45a; }
+  .c-minimap_mask  { background: rgba(60,180,90,.0);    border-color: #7fe08a; border-style: dashed; }
+  .c-minimap_blur  { background: rgba(60,180,90,.18);   border-color: #2a7a40; border-style: dotted; }
+  .c-bigmap        { background: rgba(220,80,80,.40);   border-color: #dc5050; }
+  .c-bigmap_mask   { background: rgba(220,80,80,.0);    border-color: #ff8a8a; border-style: dashed; }
+  .c-bigmap_blur   { background: rgba(220,80,80,.18);   border-color: #a03030; border-style: dotted; }
+  .c-pausemap      { background: rgba(80,140,240,.20);  border-color: #508cf0; }
+  .c-pausemap_mask { background: rgba(80,140,240,.0);   border-color: #8ab4f8; border-style: dashed; }
+  .c-gallery       { background: rgba(230,180,60,.20);  border-color: #e6b43c; }
+  .c-gallery_mask  { background: rgba(230,180,60,.0);   border-color: #ffd97a; border-style: dashed; }
+  .c-golf_courses  { background: rgba(160,90,220,.20);  border-color: #a05adc; }
+  .drag-box {
+    position: absolute; border: 2px dashed #ffcf5c;
+    background: rgba(255,207,92,.12);
+    pointer-events: none; z-index: 20;
+  }
+  .drag-box-size {
+    position: absolute; top: -22px; left: 0;
+    background: #ffcf5c; color: #000;
+    font-family: monospace; font-size: 11px;
+    padding: 3px 8px; border-radius: 3px;
+    white-space: nowrap; font-weight: 600; line-height: 1.3;
+  }
+  .marker {
+    position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    border-radius: 50%; border: 2px solid #ffcf5c;
+    background: rgba(255,207,92,.3);
+    pointer-events: none; z-index: 25;
+    box-shadow: 0 0 6px rgba(255,207,92,.9);
+  }
+  .marker-label {
+    position: absolute; background: rgba(20,24,32,.95);
+    border: 1px solid #ffcf5c; color: #ffcf5c;
+    font-family: monospace; font-size: 10px;
+    padding: 2px 5px; border-radius: 4px;
+    pointer-events: none; white-space: nowrap; z-index: 26;
+    transform: translate(12px, 8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.6);
+  }
+  .readout {
+    margin-top: 12px; padding: 10px 14px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--panel-border); border-radius: 6px;
+    font-family: monospace; font-size: 11px; color: #a8b8d8;
+    text-align: left; width: 100%;
+    max-width: 1120px;
+    line-height: 1.7;
+    transition: background-color .3s, border-color .3s;
+  }
+  .readout b { color: var(--panel-accent-text); }
+  .readout code { color: #ffd97a; }
+  .readout .hint { color: var(--panel-text-dim); }
+  .readout .box-line { padding: 4px 8px; margin-top: 4px; background: rgba(14, 26, 16, 0.9); border-left: 3px solid #3cb45a; border-radius: 3px; }
+  .readout .box-line.active { border-left-color: var(--panel-head); background: var(--panel-bg-solid); }
+  .readout .box-line.none { background: var(--panel-inner-bg); border-left-color: #444; color: var(--panel-text-dim); }
+  .readout .box-line .fmt { color: #fff; font-weight: 600; }
+  .readout .sel-info { padding: 6px 10px; background: #1e1a10; border-left: 3px solid #ffcf5c; border-radius: 3px; color: #ffd97a; margin-bottom: 6px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1a5a2a; color: #c8f0d0;
+    border: 1px solid #3cb45a;
+    padding: 10px 20px; border-radius: 6px;
+    font-family: monospace; font-size: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.6);
+    opacity: 0; transition: all .25s;
+    z-index: 4000; pointer-events: none;
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { background: #5a1a1a; border-color: #d93c3c; color: #f0c0c0; }
+
+  .settings-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.75);
+    display: none; align-items: center; justify-content: center;
+    z-index: 3000;
+  }
+  .settings-modal.on { display: flex; }
+  .settings-content {
+    background: var(--panel-bg-solid); border: 1px solid var(--panel-border-soft);
+    border-radius: 8px; padding: 18px;
+    max-width: 720px; width: 90%;
+    max-height: 88vh; overflow-y: auto;
+    font-family: monospace; font-size: 12px;
+    transition: background-color .3s, border-color .3s;
+  }
+  .settings-content h2 { margin: 0 0 12px; font-size: 15px; color: var(--panel-head); }
+  .settings-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--panel-border); }
+  .settings-section:last-child { border-bottom: none; }
+  .settings-section h3 { margin: 0 0 8px; font-size: 12px; color: var(--panel-accent-text); }
+  .settings-section .row {
+    display: grid; grid-template-columns: 20px 1fr;
+    align-items: center; gap: 8px;
+    padding: 3px 0; color: #ccc; cursor: pointer;
+  }
+  .settings-section .row:hover { color: #fff; }
+  .settings-section .row input[type="checkbox"] { accent-color: #4a8aff; cursor: pointer; }
+  .settings-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .settings-actions button {
+    background: #2d6cdf; border: 1px solid #4a8aff; color: #fff;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .settings-actions button:hover { background: #3d7cef; }
+  .settings-actions button.secondary { background: var(--panel-bg-solid); border-color: var(--panel-border-soft); color: #ccc; }
+</style>
+</head>
+<body>
+
+<canvas id="web-bg"></canvas>
+
+<h1>Minimap — фронтенд редактор by wayz1t</h1>
+<div class="sub">
+  Кнопка <b>⚙️ Настройки</b> — скрыть не нужные кнопки и настроить внешний вид. Панели сворачиваются кликом по заголовку, перемещаются за <code>⋮⋮</code>. Пресеты меняют фон страницы, окно предпросмотра, панели и цвет паутины.
+</div>
+
+<div class="layout">
+  <div class="main-area">
+
+    <div class="toolbar" id="toolbar">
+      <span class="label">формат:</span>
+      <button data-kind="aspect" data-value="16-9" class="active">16:9</button>
+      <button data-kind="aspect" data-value="16-10">16:10</button>
+      <button data-kind="aspect" data-value="5-3">5:3</button>
+      <button data-kind="aspect" data-value="3-2">3:2</button>
+      <button data-kind="aspect" data-value="4-3">4:3</button>
+      <button data-kind="aspect" data-value="5-4">5:4</button>
+
+      <span class="sep" data-btn-group="zoom"></span>
+      <button id="btnZoomOut" data-btn-group="zoom">−</button>
+      <span class="zoom-display" id="zoomDisplay">100%</span>
+      <button id="btnZoomIn" data-btn-group="zoom">+</button>
+      <button id="btnZoomReset" data-btn-group="zoom">Сброс</button>
+
+      <span class="sep" data-btn-group="xml"></span>
+      <button id="btnImportXml" class="blue" data-btn-group="xml">📥 Загрузить frontend.xml</button>
+      <input type="file" id="inputXmlFile" accept=".xml,text/xml,application/xml">
+      <button id="btnExportXmlFile" class="blue" data-btn-group="xml">📤 Скачать frontend.xml</button>
+      <button id="btnPreviewExport" class="purple" data-btn-group="xml">👁 Предпросмотр</button>
+      <button id="btnResetToDefault" class="red" data-btn-group="xml">↩️ Вернуть стандарт</button>
+
+      <span class="sep" data-btn-group="save"></span>
+      <button id="btnSave" class="green" data-btn-group="save">💾 Сохранить</button>
+      <button id="btnLoad" data-btn-group="save">📂 Загрузить сохранение</button>
+      <button id="btnDefaults" class="purple" data-btn-group="save">🔄 Стандарт координат</button>
+
+      <span class="sep" data-btn-group="tools"></span>
+      <button id="btnDraw" class="orange" data-btn-group="tools">✏️ Обводка (выкл)</button>
+      <button id="btnClearAll" data-btn-group="tools">🗑 Очистить обводки</button>
+      <button id="btnMarkerMode" data-btn-group="tools">🎯 Ставить маркеры (выкл)</button>
+      <button id="btnClearMarkers" class="red" data-btn-group="tools">🗑 Очистить маркеры</button>
+
+      <span class="sep" data-btn-group="select"></span>
+      <button id="btnSelectNone" class="yellow" data-btn-group="select">✓ Снять выделение</button>
+      <button id="btnSelectAll" data-btn-group="select">✓ Выделить всё</button>
+
+      <span class="sep" data-btn-group="view"></span>
+      <button id="btnMarks" class="active" data-btn-group="view">⚙️ Метки</button>
+      <button id="btnCrosshair" class="active" data-btn-group="view">🎯 Прицел</button>
+      <button id="btnPredicted" data-btn-group="view">📐 Формула</button>
+
+      <span class="sep" data-btn-group="toggle"></span>
+      <button id="btnEnableAll" data-btn-group="toggle">Вкл всё</button>
+      <button id="btnDisableAll" data-btn-group="toggle">Выкл всё</button>
+      <button id="btnReset" data-btn-group="toggle">Сброс координат</button>
+
+      <span class="sep" data-btn-group="bg"></span>
+      <button id="btnBgOpen" class="active" data-btn-group="bg">📷 Загрузить фон</button>
+      <input type="file" id="bgInput" accept="image/*">
+      <button id="btnDim" class="active" data-btn-group="bg">Затемнить</button>
+      <button id="btnHideBg" data-btn-group="bg">Скрыть фон</button>
+      <button id="btnToggleGrid" class="active" data-btn-group="bg">Сетка</button>
+      <button id="btnToggleRuler" class="active" data-btn-group="bg">Линейка</button>
+
+      <span class="sep"></span>
+      <button id="btnSettings" class="purple" title="Скрыть/показать кнопки и настроить внешний вид">⚙️ Настройки</button>
+    </div>
+
+    <div class="status-bar ready" id="statusBar">
+      <span class="dot on" id="xmlStatusDot"></span>
+      <span id="xmlStatusText">✓ Загружен стандартный frontend.xml</span>
+      <span class="sel" id="selInfo"></span>
+    </div>
+
+    <div class="screen" id="screen">
+      <div class="viewport" id="viewport">
+        <div class="frame" id="frame">
+          <div class="bg-layer" id="bgLayer"></div>
+          <div class="dim-layer"></div>
+          <div class="grid"></div>
+          <div class="grid-fine" id="gridFine"></div>
+          <div class="ruler-x" id="rulerX"></div>
+          <div class="ruler-y" id="rulerY"></div>
+          <div class="frame-label" id="frameLabel"></div>
+          <div class="crosshair" id="crosshair"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout" id="readout"></div>
+  </div>
+
+  <aside class="sidebar" id="sidebar">
+
+    <div class="collapsible" data-panel="elements" draggable="false">
+      <div class="panel-header">
+        <span class="drag-handle" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
+        <span class="toggle-icon">▼</span>
+        <span>// элементы</span>
+      </div>
+      <div class="panel-body">
+        <div class="elements-grid" id="elemGrid"></div>
+      </div>
+    </div>
+
+    <div class="collapsible" data-panel="manual" draggable="false">
+      <div class="panel-header">
+        <span class="drag-handle" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
+        <span class="toggle-icon">▼</span>
+        <span>// мои параметры (точный ввод)</span>
+      </div>
+      <div class="panel-body">
+        <div class="manual-panel">
+          <div class="inputs" id="inputsGrid">
+            <div class="head">элемент</div>
+            <div class="head">posX</div>
+            <div class="head">posY</div>
+            <div class="head">sizeX</div>
+            <div class="head">sizeY</div>
+            <div class="head"></div>
+          </div>
+          <div class="manual-actions">
+            <button id="btnApplyAll">Применить все</button>
+            <button id="btnDefaults2" class="purple">🔄 Стандарт</button>
+            <button id="btnReloadAll" class="secondary">Сброс</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="collapsible" data-panel="style" draggable="false">
+      <div class="panel-header">
+        <span class="drag-handle" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
+        <span class="toggle-icon">▼</span>
+        <span>// внешний вид — прозрачность и размеры</span>
+      </div>
+      <div class="panel-body">
+        <div class="style-grid">
+          <div class="color-picker-row">
+            <label>Цвет фона страницы</label>
+            <input type="color" id="bg-color" value="#0e1015">
+            <span class="color-picker-value" id="bg-color-value">#0e1015</span>
+          </div>
+          <div class="color-picker-row">
+            <label>Цвет окна предпросмотра</label>
+            <input type="color" id="screen-color" value="#0a0b0e">
+            <span class="color-picker-value" id="screen-color-value">#0a0b0e</span>
+          </div>
+          <div class="color-picker-row">
+            <label>Цвет паутины (анимация фона)</label>
+            <input type="color" id="web-color" value="#9cd9f9">
+            <span class="color-picker-value" id="web-color-value">#9cd9f9</span>
+          </div>
+          <div class="color-picker-row">
+            <label>Пресеты (фон / окно / панели / паутина)</label>
+            <div class="preset-colors" id="presetColors"></div>
+          </div>
+          <div class="color-picker-row">
+            <label>Сброс цветов</label>
+            <button class="btn-mini" id="btnResetBgColor">↩️ Фон страницы</button>
+            <button class="btn-mini" id="btnResetScreenColor">↩️ Окно</button>
+            <button class="btn-mini" id="btnResetPanels">↩️ Панели</button>
+          </div>
+
+          <label>Заливка элементов <input type="range" id="sl-fill-alpha" min="0" max="100" value="45"><span class="val" id="val-fill-alpha">45%</span></label>
+          <label>Границы элементов <input type="range" id="sl-border-alpha" min="0" max="100" value="100"><span class="val" id="val-border-alpha">100%</span></label>
+          <label>Толщина границ <input type="range" id="sl-border-width" min="1" max="6" value="1"><span class="val" id="val-border-width">1 px</span></label>
+          <label>Прозрачность прицела <input type="range" id="sl-cross-alpha" min="0" max="100" value="100"><span class="val" id="val-cross-alpha">100%</span></label>
+          <label>Метка центра <input type="range" id="sl-center-alpha" min="0" max="100" value="100"><span class="val" id="val-center-alpha">100%</span></label>
+          <label>Размер метки центра <input type="range" id="sl-center-size" min="4" max="24" value="10"><span class="val" id="val-center-size">10 px</span></label>
+          <label>Метки граней <input type="range" id="sl-edge-alpha" min="0" max="100" value="100"><span class="val" id="val-edge-alpha">100%</span></label>
+          <label>Размер меток граней <input type="range" id="sl-edge-size" min="2" max="20" value="6"><span class="val" id="val-edge-size">6 px</span></label>
+          <label>Прозрачность маркеров <input type="range" id="sl-marker-alpha" min="0" max="100" value="80"><span class="val" id="val-marker-alpha">80%</span></label>
+          <label>Размер маркеров <input type="range" id="sl-marker-size" min="6" max="40" value="14"><span class="val" id="val-marker-size">14 px</span></label>
+          <label>Размер прицела <input type="range" id="sl-cross-size" min="10" max="80" value="32"><span class="val" id="val-cross-size">32 px</span></label>
+          <label>Толщина прицела <input type="range" id="sl-cross-width" min="1" max="6" value="2"><span class="val" id="val-cross-width">2 px</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="collapsible" data-panel="boxes" draggable="false">
+      <div class="panel-header">
+        <span class="drag-handle" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
+        <span class="toggle-icon">▼</span>
+        <span>// обводки — x y w h по каждому формату</span>
+      </div>
+      <div class="panel-body">
+        <div class="boxes-grid" id="boxesGrid"></div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="settings-modal" id="settingsModal">
+  <div class="settings-content">
+    <h2>⚙️ Настройки</h2>
+
+    <div class="settings-section">
+      <h3>Кнопки тулбара — сними галочку, чтобы скрыть</h3>
+      <div id="btnToggles"></div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Панели (справа)</h3>
+      <label class="row"><input type="checkbox" id="chk-panel-elements" checked> Панель элементов</label>
+      <label class="row"><input type="checkbox" id="chk-panel-manual" checked> Панель «мои параметры»</label>
+      <label class="row"><input type="checkbox" id="chk-panel-style" checked> Панель внешнего вида</label>
+      <label class="row"><input type="checkbox" id="chk-panel-boxes" checked> Панель обводок</label>
+    </div>
+
+    <div class="settings-actions">
+      <button id="btnSettingsReset" class="secondary">Сбросить настройки</button>
+      <button id="btnSettingsClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// АНИМИРОВАННЫЙ ФОН — ПАУТИНА С ПРИТЯЖЕНИЕМ К КУРСОРУ
+// ============================================================
+(function initWebAnimation() {
+  const canvas = document.getElementById('web-bg');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+
+  const mouse = { x: width / 2, y: height / 2, active: false };
+  const target = { x: width / 2, y: height / 2 };
+
+  let points = [];
+  let webColor = { r: 156, g: 217, b: 249 };
+
+  const INFLUENCE_RADIUS = 420;
+  const PULL_STRENGTH = 0.55;
+
+  function getDist2(p1, p2) {
+    return (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+  }
+
+  function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    initPoints();
+  }
+
+  function initPoints() {
+    points = [];
+    const stepX = Math.max(60, width / 20);
+    const stepY = Math.max(60, height / 20);
+
+    for (let x = 0; x < width; x += stepX) {
+      for (let y = 0; y < height; y += stepY) {
+        const px = x + Math.random() * stepX;
+        const py = y + Math.random() * stepY;
+        points.push({
+          x: px, originX: px,
+          y: py, originY: py,
+          vx: 0, vy: 0,
+          active: 0,
+          circle: null
+        });
+      }
+    }
+
+    for (let i = 0; i < points.length; i++) {
+      const closest = [];
+      const p1 = points[i];
+      for (let j = 0; j < points.length; j++) {
+        if (i === j) continue;
+        const p2 = points[j];
+        let placed = false;
+
+        for (let k = 0; k < 5; k++) {
+          if (!placed && closest[k] === undefined) {
+            closest[k] = p2;
+            placed = true;
+          }
+        }
+        for (let k = 0; k < 5; k++) {
+          if (!placed && getDist2(p1, p2) < getDist2(p1, closest[k])) {
+            closest[k] = p2;
+            placed = true;
+          }
+        }
+      }
+      p1.closest = closest;
+      p1.circle = new Circle(p1, 2 + Math.random() * 2);
+    }
+  }
+
+  function Circle(pos, rad) {
+    this.pos = pos;
+    this.radius = rad;
+    this.active = 0;
+    this.draw = function() {
+      if (!this.active) return;
+      ctx.beginPath();
+      ctx.arc(this.pos.x, this.pos.y, this.radius, 0, 2 * Math.PI, false);
+      ctx.fillStyle = `rgba(${webColor.r},${webColor.g},${webColor.b},${this.active})`;
+      ctx.fill();
+    };
+  }
+
+  function drawLines(p) {
+    if (!p.active || !p.closest) return;
+    for (let i = 0; i < p.closest.length; i++) {
+      const c = p.closest[i];
+      if (!c) continue;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.strokeStyle = `rgba(${webColor.r},${webColor.g},${webColor.b},${p.active})`;
+      ctx.stroke();
+    }
+  }
+
+  function updatePhysics() {
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+
+      p.vx += (p.originX - p.x) * 0.012;
+      p.vy += (p.originY - p.y) * 0.012;
+
+      if (mouse.active) {
+        const dx = mouse.x - p.x;
+        const dy = mouse.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        const R = INFLUENCE_RADIUS;
+        if (d2 < R * R) {
+          const d = Math.sqrt(d2) || 1;
+          const falloff = 1 - d / R;
+          const force = PULL_STRENGTH * falloff * falloff;
+          p.vx += (dx / d) * force;
+          p.vy += (dy / d) * force;
+        }
+      }
+
+      p.vx *= 0.90;
+      p.vy *= 0.90;
+
+      p.x += p.vx;
+      p.y += p.vy;
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+    updatePhysics();
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const d = getDist2(target, p);
+      if (d < 4000) {
+        p.active = 0.30;
+        p.circle.active = 0.60;
+      } else if (d < 20000) {
+        p.active = 0.10;
+        p.circle.active = 0.30;
+      } else if (d < 40000) {
+        p.active = 0.02;
+        p.circle.active = 0.10;
+      } else {
+        p.active = 0;
+        p.circle.active = 0;
+      }
+      if (mouse.active) {
+        const md = getDist2(mouse, p);
+        if (md < INFLUENCE_RADIUS * INFLUENCE_RADIUS) {
+          const boost = 1 - Math.sqrt(md) / INFLUENCE_RADIUS;
+          p.active = Math.max(p.active, 0.45 * boost);
+          p.circle.active = Math.max(p.circle.active, 0.8 * boost);
+        }
+      }
+      drawLines(p);
+      p.circle.draw();
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  window.__setWebColor = (r, g, b) => { webColor = { r, g, b }; };
+
+  window.addEventListener('mousemove', (e) => {
+    target.x = e.clientX;
+    target.y = e.clientY;
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    mouse.active = true;
+  });
+  window.addEventListener('mouseleave', () => { mouse.active = false; });
+  window.addEventListener('resize', resize);
+
+  canvas.width = width;
+  canvas.height = height;
+  initPoints();
+  animate();
+})();
+
+// ============================================================
+// СТАНДАРТНЫЙ frontend.xml
+// ============================================================
+const DEFAULT_FRONTEND_XML = `<!-- -------------------------------------------------------------->
+<!--                                                             -->
+<!-- Name:       frontend.xml                                    -->
+<!-- My Discord: wayz1t                                          -->
+<!--                                                             -->
+<!-- -------------------------------------------------------------->
+
+
+<frontend>
+    
+    <!------------------------->
+    <!-----------hud ---------->
+    <!------------------------->
+
+    <Hud>
+        <component name="HUD"                                               posX="0.0"      posY="0.0"      sizeX="1.0"     sizeY="1.0"     hudcolor="HUD_COLOUR_BLACK"         alpha="0"   depth="0"  listId="-1" listPriority="-1"  hasGfx="1" standaloneMovie="1"/>
+       
+        <component name="HUD_WANTED_STARS"          alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"     	sizeX=".075" 	sizeY="0.0264"  hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="120" listId="1"  listPriority="1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_WEAPON_ICON"           alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.03701" hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="130" listId="1"  listPriority="6"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_CASH"                  alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"      sizeX="0.2"		sizeY="0.0428" 	hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="140" listId="1"  listPriority="4"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_CASH"               alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"      sizeX="0.2"  	sizeY="0.0428" 	hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="150" listId="1"  listPriority="2"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_MESSAGE"            alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"      sizeX="0.2"     sizeY="0.0428"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="160" listId="1"  listPriority="3"	hasGfx="0" standaloneMovie="0"/>
+		<component name="HUD_VEHICLE_NAME"          alignX="R"  alignY="B"  posX="0.0"      posY="-0.06" 	sizeX="0.781"   sizeY="0.0472"  hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="170" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_AREA_NAME"             alignX="R"  alignY="B"  posX="0.0"      posY="-0.022" 	sizeX="0.781"   sizeY="0.0472"  hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="180" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_UNUSED"         		alignX="R"  alignY="B"  posX="0.0"      posY="0.0" 		sizeX="0.0"  	sizeY="0.0"		hudcolor="HUD_COLOUR_WHITE"         alpha="255" depth="190" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_STREET_NAME"           alignX="R"  alignY="B"  posX="0.0"      posY="0.0154" 	sizeX="0.781"   sizeY="0.0472"  hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="200" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_HELP_TEXT"             alignX="L"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.203"   sizeY="0.389"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="210" listId="2"  listPriority="0"  	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_FLOATING_HELP_TEXT_1"  alignX="L"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.218"   sizeY="0.389"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="220" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_FLOATING_HELP_TEXT_2"  alignX="L"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.218"   sizeY="0.389"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="230" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_CASH_CHANGE"           alignX="R"  alignY="T"  posX="0.00115" 	posY="0.0"     	sizeX="0.2"  	sizeY="0.0428" 	hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="240" listId="1"  listPriority="5"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_RETICLE"               alignX="C"  alignY="C"  posX="0.0"      posY="0.0"      sizeX="1.0"     sizeY="1.0"     hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="110" listId="-1" listPriority="-1"	hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_SUBTITLE_TEXT"         alignX="C"  alignY="B"  posX="0.0"      posY=".0051"	sizeX="1.0"     sizeY="0.167"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="250" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_RADIO_STATIONS_WHEEL"  alignX="C"  alignY="C"  posX="0.0"      posY="-0.042"   sizeX="0.5625"  sizeY="1.0"     hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="260" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_SAVING"                alignX="R"  alignY="B"  posX="0.0"      posY="0.0"      sizeX="0.3125"  sizeY="0.042"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="2000"listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_GAME_STREAM_UNUSED"    alignX="I"  alignY="I"  posX="0.0"		posY="-0.260"   sizeX="0.140"  	sizeY="1.0"     hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="280" listId="2"  listPriority="-1"	hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_WEAPON_WHEEL"          alignX="C"  alignY="C"  posX="0.0"      posY="-0.09"    sizeX="0.4688"  sizeY="0.7639"  hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="290" listId="-1" listPriority="-1"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_WEAPON_WHEEL_STATS"    alignX="R"  alignY="T"  posX="0.0"      posY="0.045"    sizeX="0.1156"   sizeY="0.171"   hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="300" listId="1" 	listPriority="9"	hasGfx="0" standaloneMovie="0"/>
+    </Hud>
+    
+    
+    
+    <!------------------------->
+    <!-------- minimap -------->
+    <!------------------------->
+    
+	<minimap v="1.0">
+		<data name="minimap"        	alignX="L"	alignY="B"	posX="-0.0045"		posY="0.002"		sizeX="0.150"		sizeY="0.188888" /> <!-- WARNING! Feed MUST match sizeX -->
+		<data name="minimap_mask"   	alignX="L"	alignY="B"	posX="0.020"		posY="0.032" 	 	sizeX="0.111"		sizeY="0.159" />
+		<data name="minimap_blur"   	alignX="L"	alignY="B"	posX="-0.03"		posY="0.022"		sizeX="0.266"		sizeY="0.237" />
+		<data name="bigmap"         	alignX="L"	alignY="B"	posX="-0.003975"	posY="0.022"		sizeX="0.364"		sizeY="0.460416666" />
+		<data name="bigmap_mask"    	alignX="L"	alignY="B"	posX="0.145"		posY="0.015"		sizeX="0.176"		sizeY="0.395" />
+		<data name="bigmap_blur"    	alignX="L"	alignY="B"	posX="-0.019"		posY="0.022"		sizeX="0.262"		sizeY="0.464" />
+		<data name="pausemap" 			alignX="I"	alignY="I"	posX="0.0"			posY="0.0"			sizeX="1.0"			sizeY="1.0" />
+		<data name="pausemap_mask"		alignX="I"	alignY="I"	posX="0.1615"		posY="0.222"		sizeX="0.679"		sizeY="0.598"/>											
+		<data name="gallery"        	alignX="I"	alignY="I"	posX="0.49218"		posY="0.222"		sizeX="0.471875"	sizeY="0.5975" />
+		<data name="gallery_mask"   	alignX="I"	alignY="I"	posX="0.700"		posY="0.222"		sizeX="0.1775"		sizeY="0.5975" />
+		<data name="golf_courses"   	alignX="L"	alignY="B"	posX="0.003"		posY="-0.038"		sizeX="0.27375"		sizeY="0.347" />
+	</minimap>
+	
+
+    <!----------------------------------->
+    <!-------- minimap interiors -------->
+    <!----------------------------------->
+    
+    <minimap_interiors>
+	  <interior name="xm_x17DLC_FakeBase" posX="800.0" posY="5500.0" rot="0.0">
+            <content name="xm_x17DLC_int_silo_01"/>
+            <content name="xm_x17DLC_int_silo_02"/>
+            <content name="xm_x17DLC_int_base_loop"/>
+            <content name="xm_x17DLC_int_bse_tun"/>
+            <content name="xm_x17DLC_int_base_tun"/>
+            <content name="xm_x17DLC_int_base"/>
+            <content name="xm_x17DLC_int_base_ent"/>
+            <content name="xm_x17DLC_int_tun_straight"/>
+            <content name="xm_x17DLC_int_tun_slope_flat"/>
+            <content name="xm_x17DLC_int_tun_flat_slope"/>
+            <content name="xm_x17DLC_int_slope_flat"/>
+            <content name="xm_x17DLC_int_tun_30d_r"/>
+            <content name="xm_x17DLC_int_tun_30d_l"/>
+            <content name="xm_x17DLC_int_tun_flat_slope"/>
+            <content name="xm_x17DLC_int_tun_entry"/>
+        </interior>
+        <interior name="V_FakeMetro" posX="-200.0" posY="-1500.0" rot="0.0">
+            <content name="Metro_Map_End"/>
+            <content name="Metro_Sl_Top"/>
+            <content name="Metro_30"/>
+            <content name="Metro_End_031"/>
+            <content name="Metro_End"/>
+            <content name="Metro_Map_Join_1"/>
+            <content name="Metro_Map_Join_2"/>
+            <content name="Metro_NEWwalk1"/>
+            <content name="Metro_NEWwalk2"/>
+            <content name="Metro_NEWwalk3"/>
+            <content name="Metro_NEWwalk4"/>
+            <content name="Metro_NEWwalk5"/>
+            <content name="Metro_NEWwalk6"/>
+            <content name="Metro_Sl_Bot"/>
+            <content name="Metro_Sm"/>
+            <content name="Metro_Sm_Sl"/>
+            <content name="Metro_Sm1"/>
+            <content name="Metro_Sm2"/>
+            <content name="Metro_Small_30"/>
+            <content name="Metro_stat3join1"/>
+            <content name="Metro_stat3join2"/>
+            <content name="Metro_stat3join3"/>
+            <content name="Metro_stat3join4"/>
+            <content name="Metro_stat3special"/>
+            <content name="Metro_Station_3_seoul"/>
+            <content name="Metro_T_End_30"/>
+            <content name="Metro_T_End"/>
+            <content name="Metro_T_End2_30"/>
+            <content name="Metro_T_Join"/>
+            <content name="Metro_T_Lg_30"/>
+            <content name="Metro_T_Sl_Bot"/>
+            <content name="Metro_T_Sl_Top"/>
+            <content name="Metro_T_St_Lg_30"/>
+            <content name="Metro_T_St_Sl_Bot"/>
+            <content name="Metro_T_St_Sl_Top"/>
+            <content name="Metro_T_Stair"/>
+            <content name="Metro_T_Stair2"/>
+            <content name="Metro_T_Step_20"/>
+            <content name="Metro_T_Step"/>
+            <content name="Metro_Topen_Step"/>
+            <content name="Metro_Tsidex"/>
+            <content name="Metrotest"/>
+            <content name="V_31_Tun_01"/>
+            <content name="V_31_Tun_02"/>
+            <content name="V_31_Tun_03"/>
+            <content name="V_31_Tun_04"/>
+            <content name="V_31_Tun_05"/>
+            <content name="V_31_Tun_06"/>
+            <content name="V_31_Tun_07"/>
+            <content name="V_31_Tun_08"/>
+            <content name="V_31_Tun_09"/>
+            <content name="V_31_Tun_10"/>
+            <content name="V_31_newTunnel1"/>
+            <content name="V_31_newTun2"/>
+            <content name="V_31_newTun3"/>
+            <content name="V_31_newTun4"/>
+            <content name="V_31_newTun5"/>
+			<content name="V_31_newTun4b"/>
+        </interior>
+        <interior name="V_FakeWaterTunnel" posX="-1500.0" posY="-875.0" rot="0.0">
+            <content name="VBCA_Tunnel1"/>
+            <content name="VBCA_Tunnel2"/>
+            <content name="VBCA_Tunnel3"/>
+            <content name="VBCA_Tunnel4"/>
+            <content name="VBCA_Tunnel5"/>
+        </interior>
+    <interior name="V_Factory" posX="-71.9" posY="6239.4" rot="-44.9">
+            <content name="V_Factory1"/>
+            <content name="V_Factory2"/>
+            <content name="V_Factory3"/>
+            <content name="V_Factory4"/>
+        </interior>
+    <interior name="V_FakeTunnel_SC1" posX="420.0" posY="-1940.0" rot="0.0">
+            <content name="SC1_RD_INTtun1"/>
+            <content name="SC1_RD_INTtun2"/>
+            <content name="SC1_RD_INTtun2b"/>
+            <content name="SC1_RD_INTtun2b_end"/>
+            <content name="SC1_RD_INTtun3"/>
+            <content name="SC1_RD_INTtun3b"/>
+            <content name="SC1_RD_INTtun3b_end"/>
+        </interior>
+    <interior name="V_FakeTunnel_ID1" posX="770" posY="-2070" rot="0.0">
+            <content name="ID1_11_tunnel1_int"/>
+            <content name="ID1_11_tunnel2_int"/>
+            <content name="ID1_11_tunnel3_int"/>
+            <content name="ID1_11_tunnel4_int"/>
+            <content name="ID1_11_tunnel5_int"/>
+            <content name="ID1_11_tunnel6_int"/>
+            <content name="ID1_11_tunnel7_int"/>
+            <content name="ID1_11_tunnel8_int"/>
+    </interior>
+	<interior name="V_Michael" posX="-807.343" posY="174.981" rot="-21">
+            <content name="V_Michael_Garage"/>
+            <content name="V_Michael"/>
+	</interior>
+	<interior name="V_FakeBoatPO1SH2A" posX="1240.0" posY="-2970.0" rot="0.0">
+            <content name="V_FakeBoatPO1SH2A"/>
+	</interior>
+    </minimap_interiors>
+    
+
+    
+    <!------------------------->  
+    <!------ pause menu ------->
+    <!------------------------->
+    <PauseMenu>
+        <CPauseMenuPersistentData v="2">
+            <Spinner v="3">
+                <vPos  x="0.501"   y="0.518"/>
+                <vSize x="0.012" y="0.021"/>
+                
+                
+<!-- As the SP_CONTENT movie has now scaled up, these offsets have been adjusted by the old movie size, 0.678x  0.635y-->
+<!-- but they're still just regular fractions -->
+                <Offsets>
+					<Column0 		x="0.113" 		y="0.296"/>
+					<Column1 		x="0.339"		y="0.296"/>
+					<Column2 		x="0.565"		y="0.296"/>
+					<Skinny5_6ths 	x="0.5085"		y="0.296"/>
+					<Skinny6_6ths 	x="0.6215"		y="0.296"/>
+					<WideFirst2 	x="0.226"		y="0.296"/>
+					<WideSecond2 	x="0.452"		y="0.296"/>
+					<CharSelectMom 	x="0.340"		y="0.185"/>
+					<CharSelectDad 	x="0.113"		y="0.40386"/>
+					<CharSelectYou 	x="0.565"		y="0.296"/>
+					<CharSelSlot1 	x="0.07"		y="0.2"/>
+					<CharSelSlot2 	x="0.205"		y="0.2"/>
+					<CharSelSlot3 	x="0.34"		y="0.2"/>
+					<CharSelSlot4 	x="0.475"		y="0.2"/>
+					<CharSelSlot5 	x="0.61"		y="0.2"/>
+					<CharSelSlot6 	x="0.621"		y="0.2"/>
+					<PauseSlot1	 	x="0.34"		y="0.2"/>
+					<PauseSlot2	 	x="0.61"		y="0.2"/>
+                </Offsets>
+            </Spinner>
+            <Gradient>
+                <vPos  x="0.0"   y="0.0"/>
+                <vSize x="1.0" y="1.0"/>
+            </Gradient>
+            <Arrows>
+                <vPos       x="0.145" y="0.1745"/>
+                <vPosRight  x="0.8435" y="0.1745"/>
+                <vPos43       x="0.145" y="0.1745"/>
+                <vPosRight43  x="0.8435" y="0.1745"/>
+                <vSize      x="0.01225" y="0.02"/>
+                <shownAlpha value="255"/>
+                <hiddenAlpha value="50"/>
+            </Arrows>
+        </CPauseMenuPersistentData>
+    </PauseMenu>
+    
+    
+    
+    <!------------------------->
+    <!-------weapon hud ------->
+    <!------------------------->
+
+    <WeaponHud>
+    </WeaponHud>
+    
+    
+    <!------------------------->
+    <!-------script hud ------->
+    <!------------------------->
+
+    <ScriptHud>
+        
+        <component name="HUD_DRUGS_PURSE_01"            alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="780" listId="1" listPriority="8"  hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_DRUGS_PURSE_02"            alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="790" listId="1" listPriority="9"  hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_DRUGS_PURSE_03"            alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="800" listId="1" listPriority="10"  hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_DRUGS_PURSE_04"            alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="810" listId="1" listPriority="11"  hasGfx="1" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_CASH_FROM_BANK"     alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="820" listId="1" listPriority="12"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_PACKAGES"           alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="830" listId="1" listPriority="13"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_CUFF_KEYS"          alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="840" listId="1" listPriority="14"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_DOWNLOAD_DATA"      alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="850" listId="1" listPriority="15"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_IF_PED_FOLLOWING"   alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="860" listId="1" listPriority="16"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_KEY_CARD"           alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="870" listId="1" listPriority="17"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_RANDOM_OBJECT"      alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="880" listId="1" listPriority="18"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_REMOTE_CONTROL"     alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="890" listId="1" listPriority="19"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_CASH_FROM_SAFE"     alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="900" listId="1" listPriority="20"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_WEAPONS_PACKAGE"    alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="910" listId="1" listPriority="21"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_TAG_KEYS"               alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="920" listId="1" listPriority="22"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_VEHICLE"                alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="930" listId="1" listPriority="23"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_VEHICLE_HELI"           alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="940" listId="1" listPriority="24"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_MP_VEHICLE_PLANE"          alignX="R"  alignY="T"  posX="0.0"      posY="0.0"      sizeX="0.2"     sizeY="0.043"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="950" listId="1" listPriority="25"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_PLAYER_SWITCH_ALERT"       alignX="L"  alignY="B"  posX="0.146"    posY="-0.144"   sizeX="0.026"   sizeY="0.046"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="960" listId="-1" listPriority="-1"  hasGfx="1" standaloneMovie="0"/>
+        <component name="MP_RANK_BAR"                   alignX="C"  alignY="T"  posX="0"        posY="0"        sizeX="0.429"   sizeY="0.097"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="970" listId="-1" listPriority="-1"  hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_DIRECTOR_MODE"             alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"      sizeX="0.23"	sizeY="0.0332"  hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255"  depth="980" listId="1"  listPriority="0"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_CHIP"              		    alignX="R"  alignY="T"  posX="0.00115"  posY="0.0"      sizeX="0.2"		sizeY="0.0428" 	hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255" depth="990" listId="1"  listPriority="7"	hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_CHIP_CHANGE"           		alignX="R"  alignY="T"  posX="0.00115" 	posY="0.0"     	sizeX="0.2"  	sizeY="0.0428" 	hudcolor="HUD_COLOUR_PURE_WHITE" alpha="255" depth="1000" listId="1"  listPriority="8"	hasGfx="0" standaloneMovie="0"/>
+        
+	</ScriptHud>
+
+    <!------------------------->
+    <!------ store menu ------->
+    <!------------------------->
+        
+    <CommerceStore>
+        <baseCoords_16_9 posX="0.1375"   posY="0.063888" sizeX="0.72656" sizeY="0.875" />
+        <baseCoords_4_3 posX="0.051"   posY="0.063888" sizeX="0.898" sizeY="0.875" />
+    </CommerceStore>
+
+
+    <!------------------------->
+    <!-------replay hud ------->
+    <!------------------------->
+
+    <ReplayHud>
+        <!--   GTA IV values:       pos (x, y)   size(x, y)   hud_color      alpha   -->
+        <!--HUD_REPLAY_CONTROLLER       0.089,0.037 0.813,0.100 HUD_COLOUR_BLACK                    200-->
+        <!--HUD_REPLAY_MOUSE                0.069,0.928 0.300,0.400 HUD_COLOUR_MENU_STANDARD    125-->
+        <component name="HUD_REPLAY_CONTROLLER"         posX="0.089"    posY="0.050"    sizeX="0.813"       sizeY="0.100"       hudcolor="HUD_COLOUR_BLACK"         alpha="200" depth="140" listId="1" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_MOUSE"              posX="0.069"    posY="0.928"    sizeX="0.300"       sizeY="0.400"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="125" depth="100" listId="1" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_HEADER"             posX="0.100"    posY="0.025"    sizeX="0.600"       sizeY="0.700"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="120" listId="1" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_OPTIONS"            posX="0.050"    posY="0.050"    sizeX="0.450"       sizeY="0.550"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="120" listId="2" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_HELP_TEXT"          posX="0.050"    posY="0.050"    sizeX="0.353"       sizeY="0.450"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="110" listId="2" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_MISC_TEXT"          posX="0.050"    posY="0.005"    sizeX="0.350"       sizeY="0.370"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="160" listId="2" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_TOP_LINE"           posX="0.000"    posY="0.192"    sizeX="1.000"       sizeY="0.192"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="100" listId="3" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_BOTTOM_LINE"        posX="0.000"    posY="0.808"    sizeX="1.000"       sizeY="0.192"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="100" listId="3" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_LEFT_BAR"           posX="0.065"    posY="0.000"    sizeX="0.500"       sizeY="0.800"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="100" listId="3" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+        <component name="HUD_REPLAY_TIMER"              posX="0.768"    posY="0.065"    sizeX="1.000"       sizeY="0.192"       hudcolor="HUD_COLOUR_PURE_WHITE"    alpha="255" depth="130" listId="1" listPriority="-1" hasGfx="0" standaloneMovie="0"/>
+    </ReplayHud>
+ 
+    <!------------------------------------>
+    <!------ the feed (GameStream) ------->
+    <!------------------------------------>
+        
+    <GameStream>
+        <position   alignX="L"  alignY="B"  posX="0.0"      		posY="0.0"	    sizeX="0.150"   sizeY="1.0" />
+		<posloading alignX="L"  alignY="B"  posX="0.0"				posY="0.0"		sizeX="0.150"	sizeY="1.0" />
+		<gametips lasttip="153" />
+		<onlinetips lasttip="-1" />
+    </GameStream>
+    
+	<!------------------------------------>
+    <!------ warning screens ------->
+    <!------------------------------------>
+    <WarningScreen>
+        <!-- remember that bitindex is the exponent, ie, 2^n, so bi of 0 is 1, bi of 1 is 2, bi 2 is 4, etc -->
+        <!-- Default sound is "SELECT", so don't need to define it for EVERY one of these -->
+        
+        <CMenuButton BitIndex="0"> 					<hButtonHash>IB_SELECT</hButtonHash>     <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="1"> 					<hButtonHash>IB_OK</hButtonHash>         <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="2"> 					<hButtonHash>IB_YES</hButtonHash>        <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="3" Sound="BACK"> 	<hButtonHash>IB_BACK</hButtonHash>       <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="4" Sound="BACK"> 	<hButtonHash>IB_CANCEL</hButtonHash>     <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="5" Sound="BACK">		<hButtonHash>IB_NO</hButtonHash>         <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="6"> 					<hButtonHash>IB_RETRY</hButtonHash>      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="7"> 					<hButtonHash>IB_RESTART</hButtonHash>    <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="8"> 					<hButtonHash>IB_SKIP</hButtonHash>       <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="9" Sound="BACK"> 	<hButtonHash>IB_QUIT</hButtonHash>       <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="10"> 				<hButtonHash>IB_ADJUST</hButtonHash>    <ButtonInputGroup>INPUTGROUP_FRONTEND_DPAD_LR</ButtonInputGroup>      </CMenuButton>
+        <CMenuButton BitIndex="11"> 				<hButtonHash>IB_IGNORE</hButtonHash>    <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="12"> 				<hButtonHash>IB_SHARE</hButtonHash>     <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="13"> 				<hButtonHash>HUD_SIGNIN</hButtonHash>   <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="14"> 				<hButtonHash>HUD_CONTINUE</hButtonHash> <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="15"> 				<hButtonHash>IB_ADJUST</hButtonHash>    <RawButtonIcon>ARROW_LEFTRIGHT</RawButtonIcon>       </CMenuButton>
+        <CMenuButton BitIndex="16"> 				<hButtonHash>FE_HLP5</hButtonHash>      <RawButtonIcon>ARROW_UPDOWN</RawButtonIcon>      </CMenuButton>
+        <CMenuButton BitIndex="17"> 				<hButtonHash>HUD_OVERWRITE</hButtonHash><ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="18"> 				<hButtonHash>IB_SOCIAL_CLUB</hButtonHash><ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>        </CMenuButton>
+        <CMenuButton BitIndex="19"> 				<hButtonHash>IB_CONFIRM</hButtonHash>     <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="20"> 				<hButtonHash>HUD_ENTERQUEUE</hButtonHash>     <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="21"> 				<hButtonHash>IB_RETRY</hButtonHash>     <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="22" Sound="SELECT"> 	<hButtonHash>IB_BACK</hButtonHash>     <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="23"> 				<hButtonHash>IB_UPDATE_SOCIAL_CLUB</hButtonHash>     <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="24"Sound="SELECT">	<hButtonHash>HUD_ENTERSPEC</hButtonHash>     <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="25"Sound="SELECT">	<hButtonHash>IB_OK</hButtonHash>     		<ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="26"Sound="BACK">		<hButtonHash>HUD_CANCEL_TRANS</hButtonHash>     <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="27">					<RawButtonIcon>ICON_SPINNER</RawButtonIcon> </CMenuButton>
+        <CMenuButton BitIndex="28"Sound="BACK">		<hButtonHash>HUD_RETSP</hButtonHash>     <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="29"Sound="BACK"> 	<hButtonHash>IB_CANCEL</hButtonHash>      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <!-- BIT30 is reserved for NO SOUND -->
+        <CMenuButton BitIndex="31"Sound="EXIT">		<hButtonHash>FE_HLP16</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="32"Sound="BACK">		<hButtonHash>IB_NO</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_X</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="33"Sound="BACK">		<hButtonHash>IB_HOST</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="34"Sound="SELECT">		<hButtonHash>IB_ANYJOB</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="35"Sound="SELECT">		<hButtonHash>BUTTON_PLUS_PROMO2</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>     </CMenuButton>
+        <CMenuButton BitIndex="36"Sound="BACK">		<hButtonHash>IB_FREEMODE</hButtonHash>		 <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>     </CMenuButton>
+    </WarningScreen>
+
+  <!------------------------------------>
+  <!------ warning screens ------->
+  <!------------------------------------>
+  <TextEntryBox>
+    <!-- remember that bitindex is the exponent, ie, 2^n, so bi of 0 is 1, bi of 1 is 2, bi 2 is 4, etc -->
+    <!-- Default sound is "SELECT", so don't need to define it for EVERY one of these -->
+
+    <CMenuButton BitIndex="0">
+      <hButtonHash>IB_SELECT</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="1">
+      <hButtonHash>IB_OK</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="2">
+      <hButtonHash>IB_YES</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="3" Sound="BACK">
+      <hButtonHash>IB_BACK</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="4" Sound="BACK">
+      <hButtonHash>IB_CANCEL</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="5" Sound="BACK">
+      <hButtonHash>IB_NO</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="6">
+      <hButtonHash>IB_RETRY</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="7">
+      <hButtonHash>IB_RESTART</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="8">
+      <hButtonHash>IB_SKIP</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="9" Sound="BACK">
+      <hButtonHash>IB_CANCEL</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_PAUSE_ALTERNATE</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="10">
+      <hButtonHash>IB_ADJUST</hButtonHash>
+      <ButtonInputGroup>INPUTGROUP_FRONTEND_DPAD_LR</ButtonInputGroup>
+    </CMenuButton>
+    <CMenuButton BitIndex="11">
+      <hButtonHash>IB_IGNORE</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="12">
+      <hButtonHash>IB_SHARE</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="13">
+      <hButtonHash>HUD_SIGNIN</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="14">
+      <hButtonHash>HUD_CONTINUE</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="15">
+      <hButtonHash>IB_ADJUST</hButtonHash>
+      <RawButtonIcon>ARROW_LEFTRIGHT</RawButtonIcon>
+    </CMenuButton>
+    <CMenuButton BitIndex="16">
+      <hButtonHash>FE_HLP5</hButtonHash>
+      <RawButtonIcon>ARROW_UPDOWN</RawButtonIcon>
+    </CMenuButton>
+    <CMenuButton BitIndex="17">
+      <hButtonHash>HUD_OVERWRITE</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="18">
+      <hButtonHash>IB_SOCIAL_CLUB</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="19">
+      <hButtonHash>IB_CONFIRM</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="20">
+      <hButtonHash>HUD_ENTERQUEUE</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="21">
+      <hButtonHash>IB_RETRY</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="22" Sound="SELECT">
+      <hButtonHash>IB_BACK</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="23">
+      <hButtonHash>IB_UPDATE_SOCIAL_CLUB</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_ACCEPT</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="24"Sound="SELECT">
+      <hButtonHash>HUD_ENTERSPEC</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="25"Sound="SELECT">
+      <hButtonHash>IB_OK</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="26"Sound="BACK">
+      <hButtonHash>HUD_CANCEL_TRANS</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <!-- BIT27 reserved for FE_WARNING_SPINNER_ONLY -->
+    <CMenuButton BitIndex="28"Sound="BACK">
+      <hButtonHash>HUD_RETSP</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="29"Sound="BACK">
+      <hButtonHash>IB_CANCEL</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <!-- BIT30 is reserved for NO SOUND -->
+    <CMenuButton BitIndex="31"Sound="EXIT">
+      <hButtonHash>FE_HLP16</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_CANCEL</ButtonInput>
+    </CMenuButton>
+    <CMenuButton BitIndex="32"Sound="BACK">
+      <hButtonHash>IB_NO</hButtonHash>
+      <ButtonInput>INPUT_FRONTEND_X</ButtonInput>
+    </CMenuButton>
+  </TextEntryBox>
+
+</frontend>
+
+<!-- eof -->`;
+
+// ============================================================
+// КОНСТАНТЫ
+// ============================================================
+const W_PHYS = 1920, H_PHYS = 1080;
+const STORAGE_KEY = "minimap_full_v21";
+const STORAGE_STYLE_KEY = "minimap_style_v1";
+const STORAGE_UI_KEY = "minimap_ui_v1";
+const STORAGE_COLLAPSE_KEY = "minimap_collapse_v1";
+const STORAGE_ORDER_KEY = "minimap_panel_order_v1";
+const STORAGE_BG_COLOR = "minimap_bg_color_v5";
+const STORAGE_SCREEN_COLOR = "minimap_screen_color_v5";
+const STORAGE_WEB_COLOR = "minimap_web_color_v5";
+const STORAGE_PANEL_COLORS = "minimap_panel_colors_v5";
+const MIN_ZOOM = 1.0;
+const MAX_ZOOM = 8.0;
+
+const FORMATS = {
+  "16-9":  { ar: 16/9,   label: "16:9" },
+  "16-10": { ar: 16/10,  label: "16:10" },
+  "5-3":   { ar: 5/3,    label: "5:3"  },
+  "3-2":   { ar: 3/2,    label: "3:2"  },
+  "4-3":   { ar: 4/3,    label: "4:3"  },
+  "5-4":   { ar: 5/4,    label: "5:4"  }
+};
+
+function formulaX(posX, aspect) {
+  const dz = W_PHYS - H_PHYS * aspect;
+  return (W_PHYS + dz + dz * dz / 1400) * posX + 7;
+}
+function formulaY(posY, sizeY) { return (1 - sizeY + posY) * H_PHYS; }
+function formulaW(aspect) { return 493 / aspect; }
+function formulaH(sizeY) { return sizeY * H_PHYS; }
+
+function fmtNum(n) {
+  if (!isFinite(n)) return "0.0";
+  let s = n.toFixed(6);
+  s = s.replace(/0+$/, "");
+  if (s.endsWith(".")) s += "0";
+  if (s === "0" || s === "-0" || s === "0." || s === "-0.") return "0.0";
+  return s;
+}
+
+// ============================================================
+// СТАНДАРТНЫЕ КООРДИНАТЫ
+// ============================================================
+const DEFAULTS = [
+  { name:"minimap",       alignX:"L", alignY:"B", posX:-0.0045,   posY: 0.002,  sizeX:0.150,    sizeY:0.188888 },
+  { name:"minimap_mask",  alignX:"L", alignY:"B", posX: 0.020,    posY: 0.032,  sizeX:0.111,    sizeY:0.159 },
+  { name:"minimap_blur",  alignX:"L", alignY:"B", posX:-0.03,     posY: 0.022,  sizeX:0.266,    sizeY:0.237 },
+  { name:"bigmap",        alignX:"L", alignY:"B", posX:-0.003975, posY: 0.022,  sizeX:0.364,    sizeY:0.460416666 },
+  { name:"bigmap_mask",   alignX:"L", alignY:"B", posX: 0.145,    posY: 0.015,  sizeX:0.176,    sizeY:0.395 },
+  { name:"bigmap_blur",   alignX:"L", alignY:"B", posX:-0.019,    posY: 0.022,  sizeX:0.262,    sizeY:0.464 },
+  { name:"pausemap",      alignX:"I", alignY:"I", posX: 0.0,      posY: 0.0,    sizeX:1.0,      sizeY:1.0 },
+  { name:"pausemap_mask", alignX:"I", alignY:"I", posX: 0.1615,   posY: 0.222,  sizeX:0.679,    sizeY:0.598 },
+  { name:"gallery",       alignX:"I", alignY:"I", posX: 0.49218,  posY: 0.222,  sizeX:0.471875, sizeY:0.5975 },
+  { name:"gallery_mask",  alignX:"I", alignY:"I", posX: 0.700,    posY: 0.222,  sizeX:0.1775,   sizeY:0.5975 },
+  { name:"golf_courses",  alignX:"L", alignY:"B", posX: 0.003,    posY:-0.038,  sizeX:0.27375,  sizeY:0.347 }
+];
+
+const STARTER_VISIBLE = {
+  minimap: true, minimap_mask: false, minimap_blur: false,
+  bigmap: true, bigmap_mask: false, bigmap_blur: false,
+  pausemap: false, pausemap_mask: false,
+  gallery: false, gallery_mask: false,
+  golf_courses: false
+};
+
+const FIXED_FROM_ASPECT = ["bigmap", "bigmap_mask", "bigmap_blur"];
+function isFixed(name) { return FIXED_FROM_ASPECT.includes(name); }
+const PASSIVE = ["pausemap", "pausemap_mask", "gallery", "gallery_mask", "golf_courses"];
+function isPassive(name) { return PASSIVE.includes(name); }
+
+const BASE_COLORS = {
+  minimap: "#3cb45a", minimap_mask: "#7fe08a", minimap_blur: "#2a7a40",
+  bigmap: "#dc5050", bigmap_mask: "#ff8a8a", bigmap_blur: "#a03030",
+  pausemap: "#508cf0", pausemap_mask: "#8ab4f8",
+  gallery: "#e6b43c", gallery_mask: "#ffd97a", golf_courses: "#a05adc"
+};
+
+// ============================================================
+// ПРЕСЕТЫ ЦВЕТОВ
+// ============================================================
+const COLOR_PRESETS = [
+  { name: "Стандарт",   bg: "#0e1015", screen: "#0a0b0e", web: "#9cd9f9",
+    panel: "rgba(21,24,32,0.92)", panelSolid: "#1e2230", panelBorder: "#262c38",
+    panelSoft: "#2e3444", panelHover: "#4a5570", panelInner: "rgba(14,16,21,0.85)",
+    head: "#8ab4f8", accentText: "#9fe0a8" },
+
+  { name: "Чёрный",     bg: "#000000", screen: "#050505", web: "#5a7ec8",
+    panel: "rgba(13,15,20,0.92)", panelSolid: "#151820", panelBorder: "#1c2230",
+    panelSoft: "#232a3a", panelHover: "#3a4458", panelInner: "rgba(8,10,14,0.85)",
+    head: "#8ab4f8", accentText: "#9fe0a8" },
+
+  { name: "Синий",      bg: "#0b1220", screen: "#060b14", web: "#7fb0ff",
+    panel: "rgba(16,26,46,0.92)", panelSolid: "#172440", panelBorder: "#1e2c4a",
+    panelSoft: "#26365a", panelHover: "#3d5278", panelInner: "rgba(10,18,32,0.85)",
+    head: "#8ab4f8", accentText: "#9fe0a8" },
+
+  { name: "Зелёный",    bg: "#0b1a10", screen: "#06100a", web: "#7fe08a",
+    panel: "rgba(15,36,24,0.92)", panelSolid: "#163322", panelBorder: "#1d402c",
+    panelSoft: "#265a3d", panelHover: "#3d7a55", panelInner: "rgba(8,22,13,0.85)",
+    head: "#7fe08a", accentText: "#c8f0d0" },
+
+  { name: "Красный",    bg: "#1a0b0b", screen: "#120606", web: "#ff8a8a",
+    panel: "rgba(36,16,16,0.92)", panelSolid: "#331818", panelBorder: "#402020",
+    panelSoft: "#5a2a2a", panelHover: "#7a3d3d", panelInner: "rgba(22,8,8,0.85)",
+    head: "#ff8a8a", accentText: "#f0c0c0" },
+
+  { name: "Фиолетовый", bg: "#140b1a", screen: "#0d0612", web: "#c99cff",
+    panel: "rgba(30,16,36,0.92)", panelSolid: "#2c1833", panelBorder: "#381f40",
+    panelSoft: "#4a2a5a", panelHover: "#6a3d7a", panelInner: "rgba(16,8,23,0.85)",
+    head: "#c99cff", accentText: "#e0c0f0" },
+
+  { name: "Оранжевый",  bg: "#1a120b", screen: "#120c06", web: "#ffd97a",
+    panel: "rgba(36,26,16,0.92)", panelSolid: "#332618", panelBorder: "#402f20",
+    panelSoft: "#5a422a", panelHover: "#7a5a3d", panelInner: "rgba(22,15,8,0.85)",
+    head: "#ffd97a", accentText: "#f0dcc0" },
+
+  { name: "Светлый",    bg: "#f5f5f5", screen: "#ffffff", web: "#3c5a8c",
+    panel: "rgba(255,255,255,0.92)", panelSolid: "#eef1f6", panelBorder: "#d8dde5",
+    panelSoft: "#c8cfd9", panelHover: "#a8b2c0", panelInner: "rgba(240,242,246,0.85)",
+    head: "#2d6cdf", accentText: "#1a4a9c" }
+];
+
+// ============================================================
+// КОНФИГ КНОПОК
+// ============================================================
+const BUTTONS_CONFIG = [
+  { id: "btnZoomOut",   group: "zoom",   label: "Зум −" },
+  { id: "btnZoomIn",    group: "zoom",   label: "Зум +" },
+  { id: "btnZoomReset", group: "zoom",   label: "Сброс зума" },
+  { id: "btnImportXml",       group: "xml", label: "📥 Загрузить frontend.xml" },
+  { id: "btnExportXmlFile",   group: "xml", label: "📤 Скачать frontend.xml" },
+  { id: "btnPreviewExport",   group: "xml", label: "👁 Предпросмотр" },
+  { id: "btnResetToDefault",  group: "xml", label: "↩️ Вернуть стандарт" },
+  { id: "btnSave",     group: "save", label: "💾 Сохранить" },
+  { id: "btnLoad",     group: "save", label: "📂 Загрузить сохранение" },
+  { id: "btnDefaults", group: "save", label: "🔄 Стандарт координат" },
+  { id: "btnDraw",          group: "tools", label: "✏️ Обводка" },
+  { id: "btnClearAll",      group: "tools", label: "🗑 Очистить обводки" },
+  { id: "btnMarkerMode",    group: "tools", label: "🎯 Ставить маркеры" },
+  { id: "btnClearMarkers",  group: "tools", label: "🗑 Очистить маркеры" },
+  { id: "btnSelectNone", group: "select", label: "✓ Снять выделение" },
+  { id: "btnSelectAll",  group: "select", label: "✓ Выделить всё" },
+  { id: "btnMarks",     group: "view", label: "⚙️ Метки" },
+  { id: "btnCrosshair", group: "view", label: "🎯 Прицел" },
+  { id: "btnPredicted", group: "view", label: "📐 Формула" },
+  { id: "btnEnableAll",  group: "toggle", label: "Вкл всё" },
+  { id: "btnDisableAll", group: "toggle", label: "Выкл всё" },
+  { id: "btnReset",      group: "toggle", label: "Сброс координат" },
+  { id: "btnBgOpen",     group: "bg", label: "📷 Загрузить фон" },
+  { id: "btnDim",        group: "bg", label: "Затемнить" },
+  { id: "btnHideBg",     group: "bg", label: "Скрыть фон" },
+  { id: "btnToggleGrid", group: "bg", label: "Сетка" },
+  { id: "btnToggleRuler",group: "bg", label: "Линейка" }
+];
+
+const BYGROUP_TITLES_ORDER = {
+  zoom:   "Зум",
+  xml:    "Импорт / экспорт / предпросмотр",
+  save:   "Сохранение координат",
+  tools:  "Инструменты (обводка, маркеры)",
+  select: "Выделение",
+  view:   "Метки, прицел, формула",
+  toggle: "Включение / выключение",
+  bg:     "Фон, сетка, линейка"
+};
+
+// ============================================================
+// СОСТОЯНИЕ
+// ============================================================
+let currentAspect = "16-9";
+let boxes = {};
+let markers = [];
+let drawMode = false;
+let markerMode = false;
+let bgUrl = null;
+let showMarks = true;
+let zoom = 1;
+let panX = 0, panY = 0;
+
+let fullXmlText = DEFAULT_FRONTEND_XML;
+let fullXmlName = "frontend.xml (стандарт)";
+
+let selected = new Set();
+let data = DEFAULTS.map(d => ({ ...d, enabled: !!STARTER_VISIBLE[d.name] }));
+let inputs = {};
+
+const styleState = {
+  fillAlpha: 0.45, borderAlpha: 1.0, borderWidth: 1,
+  centerAlpha: 1.0, centerSize: 10,
+  edgeAlpha: 1.0, edgeSize: 6,
+  markerAlpha: 0.8, markerSize: 14,
+  crossAlpha: 1.0, crossSize: 32, crossWidth: 2
+};
+
+const uiState = {
+  buttons: {},
+  panels: { elements: true, manual: true, boxes: true, style: true }
+};
+BUTTONS_CONFIG.forEach(b => uiState.buttons[b.id] = true);
+
+const collapseState = {
+  elements: false,
+  manual: false,
+  style: false,
+  boxes: false
+};
+
+// ============================================================
+// ХЕЛПЕРЫ
+// ============================================================
+function showToast(text, isError = false) {
+  const toastEl = document.getElementById("toast");
+  toastEl.textContent = text;
+  toastEl.classList.toggle("err", isError);
+  toastEl.classList.add("on");
+  clearTimeout(toastEl._t);
+  toastEl._t = setTimeout(() => toastEl.classList.remove("on"), 2800);
+}
+
+function hexToRgb(hex) {
+  const h = hex.replace("#", "");
+  if (h.length === 3) {
+    return {
+      r: parseInt(h[0]+h[0], 16), g: parseInt(h[1]+h[1], 16), b: parseInt(h[2]+h[2], 16)
+    };
+  }
+  return {
+    r: parseInt(h.substring(0, 2), 16) || 0,
+    g: parseInt(h.substring(2, 4), 16) || 0,
+    b: parseInt(h.substring(4, 6), 16) || 0
+  };
+}
+function rgbToHex(r, g, b) {
+  const to = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return "#" + to(r) + to(g) + to(b);
+}
+function shade(hex, percent) {
+  const { r, g, b } = hexToRgb(hex);
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  return rgbToHex((t - r) * p + r, (t - g) * p + g, (t - b) * p + b);
+}
+function rgbaFromHex(hex, alpha) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function saveUIState() {
+  try { localStorage.setItem(STORAGE_UI_KEY, JSON.stringify(uiState)); } catch(e) {}
+}
+function loadUIState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_UI_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.buttons) Object.keys(s.buttons).forEach(k => {
+      if (typeof s.buttons[k] === "boolean") uiState.buttons[k] = s.buttons[k];
+    });
+    if (s.panels) Object.keys(s.panels).forEach(k => {
+      if (typeof s.panels[k] === "boolean") uiState.panels[k] = s.panels[k];
+    });
+  } catch(e) {}
+}
+
+function saveCollapseState() {
+  try { localStorage.setItem(STORAGE_COLLAPSE_KEY, JSON.stringify(collapseState)); } catch(e) {}
+}
+function loadCollapseState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_COLLAPSE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    Object.keys(collapseState).forEach(k => {
+      if (typeof s[k] === "boolean") collapseState[k] = s[k];
+    });
+  } catch(e) {}
+}
+
+function applyUIState() {
+  BUTTONS_CONFIG.forEach(b => {
+    const el = document.getElementById(b.id);
+    if (!el) return;
+    el.style.display = uiState.buttons[b.id] ? "" : "none";
+  });
+  document.querySelectorAll("[data-btn-group]").forEach(sep => {
+    if (sep.tagName === "SPAN" && sep.classList.contains("sep")) {
+      const group = sep.dataset.btnGroup;
+      const anyVisible = BUTTONS_CONFIG.some(b => b.group === group && uiState.buttons[b.id]);
+      sep.style.display = anyVisible ? "" : "none";
+    }
+  });
+  const zd = document.getElementById("zoomDisplay");
+  if (zd) {
+    const anyZoomVisible = uiState.buttons["btnZoomIn"] || uiState.buttons["btnZoomOut"] || uiState.buttons["btnZoomReset"];
+    zd.style.display = anyZoomVisible ? "" : "none";
+  }
+  document.querySelectorAll(".sidebar .collapsible").forEach(panel => {
+    const key = panel.dataset.panel;
+    panel.style.display = uiState.panels[key] ? "" : "none";
+  });
+}
+
+function applyCollapseState() {
+  document.querySelectorAll(".sidebar .collapsible").forEach(panel => {
+    const key = panel.dataset.panel;
+    panel.classList.toggle("collapsed", !!collapseState[key]);
+  });
+}
+
+function bindCollapseHandlers() {
+  document.querySelectorAll(".sidebar .collapsible").forEach(panel => {
+    const header = panel.querySelector(".panel-header");
+    if (!header) return;
+    header.addEventListener("click", (e) => {
+      if (e.target.closest(".drag-handle")) return;
+      const key = panel.dataset.panel;
+      collapseState[key] = !collapseState[key];
+      panel.classList.toggle("collapsed", collapseState[key]);
+      saveCollapseState();
+    });
+  });
+}
+
+// ============================================================
+// ЦВЕТА
+// ============================================================
+const DEFAULT_BG_COLOR = "#0e1015";
+const DEFAULT_SCREEN_COLOR = "#0a0b0e";
+const DEFAULT_WEB_COLOR = "#9cd9f9";
+
+let webColorUser = null;
+
+function applyBgColor(color, save = true) {
+  document.body.style.backgroundColor = color;
+  document.documentElement.style.backgroundColor = color;
+  const canvas = document.getElementById("web-bg");
+  if (canvas) canvas.style.backgroundColor = "transparent";
+
+  if (webColorUser === null) {
+    const { r, g, b } = hexToRgb(color);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (lum > 0.6) setWebColor("#3c5a8c", false);
+    else setWebColor(DEFAULT_WEB_COLOR, false);
+  }
+
+  const inp = document.getElementById("bg-color");
+  const lbl = document.getElementById("bg-color-value");
+  if (inp) inp.value = color;
+  if (lbl) lbl.textContent = color;
+
+  if (save) { try { localStorage.setItem(STORAGE_BG_COLOR, color); } catch(e) {} }
+}
+
+function applyScreenColor(color, save = true) {
+  screenEl.style.backgroundColor = color;
+  frame.style.backgroundColor = shade(color, -0.10);
+  const inp = document.getElementById("screen-color");
+  const lbl = document.getElementById("screen-color-value");
+  if (inp) inp.value = color;
+  if (lbl) lbl.textContent = color;
+  if (save) { try { localStorage.setItem(STORAGE_SCREEN_COLOR, color); } catch(e) {} }
+}
+
+function setWebColor(hex, save = true) {
+  webColorUser = hex;
+  const { r, g, b } = hexToRgb(hex);
+  if (typeof window.__setWebColor === "function") window.__setWebColor(r, g, b);
+  const inp = document.getElementById("web-color");
+  const lbl = document.getElementById("web-color-value");
+  if (inp) inp.value = hex;
+  if (lbl) lbl.textContent = hex;
+  if (save) { try { localStorage.setItem(STORAGE_WEB_COLOR, hex); } catch(e) {} }
+}
+
+function applyPanelColors(preset, save = true) {
+  if (!preset) return;
+  const root = document.documentElement;
+  root.style.setProperty("--panel-bg", preset.panel);
+  root.style.setProperty("--panel-bg-solid", preset.panelSolid);
+  root.style.setProperty("--panel-border", preset.panelBorder);
+  root.style.setProperty("--panel-border-soft", preset.panelSoft);
+  root.style.setProperty("--panel-border-hover", preset.panelHover);
+  root.style.setProperty("--panel-inner-bg", preset.panelInner);
+  root.style.setProperty("--panel-inner-border", preset.panelSoft);
+  if (preset.head) root.style.setProperty("--panel-head", preset.head);
+  if (preset.accentText) root.style.setProperty("--panel-accent-text", preset.accentText);
+  if (save) { try { localStorage.setItem(STORAGE_PANEL_COLORS, JSON.stringify(preset)); } catch(e) {} }
+}
+
+function loadBgColor() {
+  try { return localStorage.getItem(STORAGE_BG_COLOR) || DEFAULT_BG_COLOR; } catch(e) { return DEFAULT_BG_COLOR; }
+}
+function loadScreenColor() {
+  try { return localStorage.getItem(STORAGE_SCREEN_COLOR) || DEFAULT_SCREEN_COLOR; } catch(e) { return DEFAULT_SCREEN_COLOR; }
+}
+function loadWebColor() {
+  try { return localStorage.getItem(STORAGE_WEB_COLOR); } catch(e) { return null; }
+}
+function loadPanelColors() {
+  try {
+    const raw = localStorage.getItem(STORAGE_PANEL_COLORS);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function initColorControls() {
+  const bgInp = document.getElementById("bg-color");
+  const screenInp = document.getElementById("screen-color");
+  const webInp = document.getElementById("web-color");
+  const resetBgBtn = document.getElementById("btnResetBgColor");
+  const resetScreenBtn = document.getElementById("btnResetScreenColor");
+  const resetPanelsBtn = document.getElementById("btnResetPanels");
+  const presets = document.getElementById("presetColors");
+
+  if (presets) {
+    presets.innerHTML = "";
+    COLOR_PRESETS.forEach(p => {
+      const sw = document.createElement("div");
+      sw.className = "preset";
+      sw.style.setProperty("--p-bg", p.bg);
+      sw.style.setProperty("--p-web", p.web);
+      sw.title = `${p.name}\nфон: ${p.bg}\nокно: ${p.screen}\nпанели: ${p.panelSolid}\nпаутина: ${p.web}`;
+      sw.addEventListener("click", () => {
+        applyBgColor(p.bg, true);
+        applyScreenColor(p.screen, true);
+        applyPanelColors(p, true);
+        setWebColor(p.web, true);
+        showToast(`Пресет: ${p.name}`);
+      });
+      presets.appendChild(sw);
+    });
+  }
+
+  if (bgInp) bgInp.addEventListener("input", () => applyBgColor(bgInp.value, true));
+  if (screenInp) screenInp.addEventListener("input", () => applyScreenColor(screenInp.value, true));
+  if (webInp) webInp.addEventListener("input", () => setWebColor(webInp.value, true));
+
+  if (resetBgBtn) {
+    resetBgBtn.addEventListener("click", () => {
+      webColorUser = null;
+      applyBgColor(DEFAULT_BG_COLOR, true);
+      showToast("Цвет фона страницы возвращён к стандарту");
+    });
+  }
+  if (resetScreenBtn) {
+    resetScreenBtn.addEventListener("click", () => {
+      applyScreenColor(DEFAULT_SCREEN_COLOR, true);
+      showToast("Цвет окна предпросмотра возвращён к стандарту");
+    });
+  }
+  if (resetPanelsBtn) {
+    resetPanelsBtn.addEventListener("click", () => {
+      applyPanelColors(COLOR_PRESETS[0], true);
+      showToast("Цвет панелей возвращён к стандарту");
+    });
+  }
+}
+
+// ============================================================
+// ПЕРЕТАСКИВАНИЕ ПАНЕЛЕЙ
+// ============================================================
+let dragPanel = null;
+let placeholder = null;
+let dragOffsetY = 0;
+
+function savePanelOrder() {
+  const sidebar = document.getElementById("sidebar");
+  const order = Array.from(sidebar.querySelectorAll(".collapsible")).map(p => p.dataset.panel);
+  try { localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(order)); } catch(e) {}
+}
+
+function loadPanelOrder() {
+  try {
+    const raw = localStorage.getItem(STORAGE_ORDER_KEY);
+    if (!raw) return;
+    const order = JSON.parse(raw);
+    const sidebar = document.getElementById("sidebar");
+    order.forEach(key => {
+      const panel = sidebar.querySelector(`.collapsible[data-panel="${key}"]`);
+      if (panel) sidebar.appendChild(panel);
+    });
+  } catch(e) {}
+}
+
+function initPanelDrag() {
+  const sidebar = document.getElementById("sidebar");
+  sidebar.querySelectorAll(".collapsible").forEach(panel => {
+    const handle = panel.querySelector(".drag-handle");
+    if (!handle) return;
+
+    handle.addEventListener("click", (e) => e.stopPropagation());
+
+    handle.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      dragPanel = panel;
+      const rect = panel.getBoundingClientRect();
+      dragOffsetY = e.clientY - rect.top;
+
+      placeholder = document.createElement("div");
+      placeholder.className = "panel-placeholder";
+      placeholder.style.height = rect.height + "px";
+      panel.parentNode.insertBefore(placeholder, panel);
+
+      panel.classList.add("dragging");
+      panel.style.width = rect.width + "px";
+      panel.style.position = "fixed";
+      panel.style.top = rect.top + "px";
+      panel.style.left = rect.left + "px";
+      panel.style.zIndex = "1000";
+      panel.style.pointerEvents = "none";
+
+      document.addEventListener("mousemove", onPanelDragMove);
+      document.addEventListener("mouseup", onPanelDragEnd);
+    });
+  });
+}
+
+function onPanelDragMove(e) {
+  if (!dragPanel || !placeholder) return;
+
+  const sidebar = document.getElementById("sidebar");
+  const rect = sidebar.getBoundingClientRect();
+
+  dragPanel.style.top = (e.clientY - dragOffsetY) + "px";
+  dragPanel.style.left = rect.left + "px";
+
+  const panels = Array.from(sidebar.querySelectorAll(".collapsible:not(.dragging)"));
+  let inserted = false;
+
+  for (const p of panels) {
+    const r = p.getBoundingClientRect();
+    const midY = r.top + r.height / 2;
+    if (e.clientY < midY) {
+      sidebar.insertBefore(placeholder, p);
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) sidebar.appendChild(placeholder);
+
+  placeholder.style.height = dragPanel.offsetHeight + "px";
+}
+
+function onPanelDragEnd() {
+  if (!dragPanel || !placeholder) return;
+
+  placeholder.parentNode.insertBefore(dragPanel, placeholder);
+
+  dragPanel.classList.remove("dragging");
+  dragPanel.style.position = "";
+  dragPanel.style.top = "";
+  dragPanel.style.left = "";
+  dragPanel.style.width = "";
+  dragPanel.style.zIndex = "";
+  dragPanel.style.pointerEvents = "";
+
+  placeholder.remove();
+  placeholder = null;
+
+  savePanelOrder();
+
+  document.removeEventListener("mousemove", onPanelDragMove);
+  document.removeEventListener("mouseup", onPanelDragEnd);
+  dragPanel = null;
+}
+
+// ============================================================
+// РАСЧЁТ
+// ============================================================
+function getRect(d) {
+  const ar = FORMATS[currentAspect].ar;
+  const fixed = isFixed(d.name);
+  const passive = isPassive(d.name);
+
+  if (passive) {
+    let leftPx, topPx;
+    if (d.alignX === "L")      leftPx = d.posX * W_PHYS;
+    else if (d.alignX === "R") leftPx = W_PHYS - d.posX * W_PHYS - d.sizeX * W_PHYS;
+    else                       leftPx = W_PHYS/2 + d.posX * W_PHYS - d.sizeX * W_PHYS/2;
+    if (d.alignY === "T")      topPx = d.posY * H_PHYS;
+    else if (d.alignY === "B") topPx = (1 - d.posY - d.sizeY) * H_PHYS;
+    else                       topPx = H_PHYS/2 + d.posY * H_PHYS - d.sizeY * H_PHYS/2;
+    const wPx = d.sizeX * W_PHYS, hPx = d.sizeY * H_PHYS;
+    return { leftPct: leftPx / W_PHYS * 100, topPct: topPx / H_PHYS * 100,
+             wPct: wPx / W_PHYS * 100, hPct: hPx / H_PHYS * 100,
+             leftPx, topPx, wPx, hPx };
+  }
+
+  let leftPx, wPx, topPx, hPx;
+  if (fixed) {
+    leftPx = d.posX * W_PHYS;
+    wPx = d.sizeX * W_PHYS;
+    topPx = (1 - d.posY - d.sizeY) * H_PHYS;
+    hPx = d.sizeY * H_PHYS;
+  } else {
+    leftPx = formulaX(d.posX, ar);
+    wPx = formulaW(ar);
+    topPx = formulaY(d.posY, d.sizeY);
+    hPx = formulaH(d.sizeY);
+  }
+  return { leftPct: leftPx / W_PHYS * 100, topPct: topPx / H_PHYS * 100,
+           wPct: wPx / W_PHYS * 100, hPct: hPx / H_PHYS * 100,
+           leftPx, topPx, wPx, hPx };
+}
+
+function setRect(d, leftPx, topPx) {
+  const ar = FORMATS[currentAspect].ar;
+  const fixed = isFixed(d.name);
+  const passive = isPassive(d.name);
+
+  if (passive) {
+    if (d.alignX === "L")      d.posX = leftPx / W_PHYS;
+    else if (d.alignX === "R") d.posX = (W_PHYS - leftPx - d.sizeX * W_PHYS) / W_PHYS;
+    else                       d.posX = (leftPx + d.sizeX * W_PHYS / 2 - W_PHYS/2) / W_PHYS;
+    if (d.alignY === "T")      d.posY = topPx / H_PHYS;
+    else if (d.alignY === "B") d.posY = 1 - topPx / H_PHYS - d.sizeY;
+    else                       d.posY = (topPx + d.sizeY * H_PHYS / 2 - H_PHYS/2) / H_PHYS;
+    return;
+  }
+
+  if (fixed) {
+    d.posX = leftPx / W_PHYS;
+    d.posY = 1 - topPx / H_PHYS - d.sizeY;
+  } else {
+    const dz = W_PHYS - H_PHYS * ar;
+    const k = W_PHYS + dz + dz * dz / 1400;
+    d.posX = (leftPx - 7) / k;
+    d.posY = topPx / H_PHYS - 1 + d.sizeY;
+  }
+}
+
+// ============================================================
+// UI
+// ============================================================
+const screenEl = document.getElementById("screen");
+const viewport = document.getElementById("viewport");
+const frame = document.getElementById("frame");
+const frameLabel = document.getElementById("frameLabel");
+const bgLayer = document.getElementById("bgLayer");
+const crosshair = document.getElementById("crosshair");
+const bgInput = document.getElementById("bgInput");
+const elemGrid = document.getElementById("elemGrid");
+const inputsGrid = document.getElementById("inputsGrid");
+const boxesGrid = document.getElementById("boxesGrid");
+const readout = document.getElementById("readout");
+const zoomDisplay = document.getElementById("zoomDisplay");
+const selInfo = document.getElementById("selInfo");
+const statusBar = document.getElementById("statusBar");
+
+function buildElementsPanel() {
+  elemGrid.innerHTML = "";
+  data.forEach(d => {
+    const row = document.createElement("div");
+    row.className = "elem-row"
+      + (d.enabled ? " enabled" : "")
+      + (isFixed(d.name) ? " fixed" : "")
+      + (isPassive(d.name) ? " passive" : "")
+      + (selected.has(d.name) ? " selected" : "");
+    row.dataset.name = d.name;
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!d.enabled;
+    cb.addEventListener("click", (e) => e.stopPropagation());
+    cb.addEventListener("change", () => {
+      d.enabled = cb.checked;
+      row.classList.toggle("enabled", cb.checked);
+      renderAll();
+    });
+    row.appendChild(cb);
+
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = BASE_COLORS[d.name] || "#666";
+    row.appendChild(sw);
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = d.name;
+    row.appendChild(name);
+
+    if (isFixed(d.name)) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "фикс."; row.appendChild(t); }
+    if (isPassive(d.name)) { const t = document.createElement("span"); t.className = "tag passive"; t.textContent = "пассив."; row.appendChild(t); }
+    if (selected.has(d.name)) { const t = document.createElement("span"); t.className = "tag sel"; t.textContent = "выбр."; row.appendChild(t); }
+
+    const coord = document.createElement("span");
+    coord.className = "coord";
+    coord.dataset.role = "coord";
+    coord.textContent = `x=${d.posX.toFixed(3)} y=${d.posY.toFixed(3)}`;
+    row.appendChild(coord);
+
+    row.addEventListener("click", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        if (selected.has(d.name)) selected.delete(d.name);
+        else selected.add(d.name);
+      } else {
+        if (selected.size === 1 && selected.has(d.name)) selected.clear();
+        else { selected.clear(); selected.add(d.name); }
+      }
+      buildElementsPanel(); updateSelInfo(); renderAll();
+    });
+
+    elemGrid.appendChild(row);
+  });
+  updateSelInfo();
+}
+
+function updateSelInfo() {
+  if (selected.size === 0) { selInfo.textContent = ""; selInfo.style.color = "#666"; }
+  else { selInfo.textContent = `выделено (${selected.size}): ${Array.from(selected).join(", ")}`; selInfo.style.color = "#ffd97a"; }
+}
+
+function updateElementsPanel() {
+  data.forEach(d => {
+    const row = elemGrid.querySelector(`.elem-row[data-name="${d.name}"]`);
+    if (!row) return;
+    row.classList.toggle("enabled", !!d.enabled);
+    row.classList.toggle("selected", selected.has(d.name));
+    const sw = row.querySelector(".swatch");
+    if (sw) sw.style.background = BASE_COLORS[d.name] || "#666";
+    const coord = row.querySelector(`[data-role="coord"]`);
+    if (coord) coord.textContent = `x=${d.posX.toFixed(3)} y=${d.posY.toFixed(3)}`;
+  });
+}
+
+function buildInputsPanel() {
+  while (inputsGrid.children.length > 6) inputsGrid.removeChild(inputsGrid.lastChild);
+  inputs = {};
+  data.forEach(d => {
+    const ename = document.createElement("div");
+    ename.className = "ename";
+    ename.textContent = d.name;
+    inputsGrid.appendChild(ename);
+
+    const mk = (key) => {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = d[key].toFixed(key === "sizeY" ? 6 : 5);
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") applyInputs(); });
+      inp.addEventListener("change", applyInputs);
+      return inp;
+    };
+
+    const ipx = mk("posX"), ipy = mk("posY"), isx = mk("sizeX"), isy = mk("sizeY");
+    inputs[d.name] = { posX: ipx, posY: ipy, sizeX: isx, sizeY: isy };
+    inputsGrid.appendChild(ipx); inputsGrid.appendChild(ipy);
+    inputsGrid.appendChild(isx); inputsGrid.appendChild(isy);
+    const pad = document.createElement("div");
+    inputsGrid.appendChild(pad);
+  });
+}
+
+function syncInputsFromData() {
+  data.forEach(d => {
+    const inp = inputs[d.name];
+    if (!inp) return;
+    if (document.activeElement !== inp.posX) inp.posX.value = d.posX.toFixed(5);
+    if (document.activeElement !== inp.posY) inp.posY.value = d.posY.toFixed(5);
+    if (document.activeElement !== inp.sizeX) inp.sizeX.value = d.sizeX.toFixed(5);
+    if (document.activeElement !== inp.sizeY) inp.sizeY.value = d.sizeY.toFixed(6);
+  });
+}
+
+function applyInputs() {
+  data.forEach(d => {
+    const inp = inputs[d.name];
+    if (!inp) return;
+    const px = parseFloat(inp.posX.value.replace(",", "."));
+    const py = parseFloat(inp.posY.value.replace(",", "."));
+    const sx = parseFloat(inp.sizeX.value.replace(",", "."));
+    const sy = parseFloat(inp.sizeY.value.replace(",", "."));
+    if (!isNaN(px)) d.posX = px;
+    if (!isNaN(py)) d.posY = py;
+    if (!isNaN(sx) && sx > 0) d.sizeX = sx;
+    if (!isNaN(sy) && sy > 0) d.sizeY = sy;
+  });
+  renderAll();
+}
+
+function buildBoxesPanel() {
+  boxesGrid.innerHTML = "";
+  Object.keys(FORMATS).forEach(key => {
+    const f = FORMATS[key];
+    const b = boxes[key];
+    const isActive = key === currentAspect;
+    const card = document.createElement("div");
+    card.className = "box-card";
+    if (isActive) card.classList.add("active");
+    if (b) card.classList.add("has-box"); else card.classList.add("empty");
+
+    const name = document.createElement("div");
+    name.className = "fmt-name";
+    name.innerHTML = `<span>${f.label}</span><span class="dot"></span>`;
+    card.appendChild(name);
+
+    const vals = document.createElement("div");
+    vals.className = "vals";
+    if (b) {
+      const x = Math.min(b.x1, b.x2), y = Math.min(b.y1, b.y2);
+      const w = Math.abs(b.x2 - b.x1), h = Math.abs(b.y2 - b.y1);
+      vals.innerHTML = `<span class="key">x</span>=${x.toFixed(1)}  <span class="key">y</span>=${y.toFixed(1)}<br>` +
+        `<span class="key">w</span>=${w.toFixed(1)}  <span class="key">h</span>=${h.toFixed(1)}`;
+    } else vals.textContent = "нет обводки";
+    card.appendChild(vals);
+
+    if (b) {
+      const del = document.createElement("div");
+      del.className = "del"; del.textContent = "удалить";
+      del.addEventListener("click", (e) => { e.stopPropagation(); delete boxes[key]; buildBoxesPanel(); renderAll(); });
+      card.appendChild(del);
+    }
+
+    card.addEventListener("click", () => {
+      currentAspect = key;
+      document.querySelectorAll('[data-kind="aspect"]').forEach(b2 => {
+        b2.classList.toggle("active", b2.dataset.value === key);
+      });
+      updateFrame(); buildBoxesPanel(); renderAll();
+    });
+
+    boxesGrid.appendChild(card);
+  });
+}
+
+function updateFrame() {
+  const f = FORMATS[currentAspect];
+  const dz = W_PHYS - H_PHYS * f.ar;
+  frameLabel.textContent =
+    `формат ${f.label} — aspect=${f.ar.toFixed(4)}, deadzone=${dz.toFixed(0)}px, zoom=${Math.round(zoom*100)}%`;
+  bgLayer.style.height = "100%";
+  bgLayer.style.width = "auto";
+  bgLayer.style.aspectRatio = "16 / 9";
+  bgLayer.style.left = "50%";
+  bgLayer.style.top = "50%";
+  bgLayer.style.transform = "translate(-50%, -50%)";
+  if (bgUrl) bgLayer.style.backgroundImage = `url('${bgUrl}')`;
+}
+
+function buildRulers() {
+  const rulerX = document.getElementById("rulerX");
+  const rulerY = document.getElementById("rulerY");
+  rulerX.innerHTML = ""; rulerY.innerHTML = "";
+  for (let px = 0; px <= W_PHYS; px += 100) {
+    const pct = px / W_PHYS * 100;
+    const tick = document.createElement("div"); tick.className = "tick"; tick.style.left = pct + "%"; rulerX.appendChild(tick);
+    const lbl = document.createElement("div"); lbl.className = "tick-label"; lbl.style.left = pct + "%"; lbl.textContent = px; rulerX.appendChild(lbl);
+  }
+  for (let px = 0; px <= H_PHYS; px += 100) {
+    const pct = px / H_PHYS * 100;
+    const tick = document.createElement("div"); tick.className = "tick"; tick.style.top = pct + "%"; rulerY.appendChild(tick);
+    const lbl = document.createElement("div"); lbl.className = "tick-label"; lbl.style.top = pct + "%"; lbl.textContent = px; rulerY.appendChild(lbl);
+  }
+}
+
+// ============================================================
+// ЗУМ
+// ============================================================
+function applyTransform() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  const scaledW = w * zoom, scaledH = h * zoom;
+  const maxPanX = Math.max(0, scaledW - w), maxPanY = Math.max(0, scaledH - h);
+  panX = Math.max(-maxPanX, Math.min(0, panX));
+  panY = Math.max(-maxPanY, Math.min(0, panY));
+  frame.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  zoomDisplay.textContent = Math.round(zoom * 100) + "%";
+  updateCursor();
+}
+function updateCursor() {
+  screenEl.classList.toggle("cursor-cross", drawMode);
+  screenEl.classList.toggle("cursor-pan", !drawMode);
+}
+function setZoom(newZoom, centerClientX, centerClientY) {
+  newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+  const rect = viewport.getBoundingClientRect();
+  const oldZoom = zoom;
+  if (Math.abs(newZoom - oldZoom) < 1e-6) return;
+  const cx = (centerClientX ?? (rect.left + rect.width / 2)) - rect.left;
+  const cy = (centerClientY ?? (rect.top + rect.height / 2)) - rect.top;
+  const frameX = (cx - panX) / oldZoom, frameY = (cy - panY) / oldZoom;
+  zoom = newZoom;
+  panX = cx - frameX * zoom; panY = cy - frameY * zoom;
+  applyTransform(); updateFrame();
+}
+viewport.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  setZoom(zoom * factor, e.clientX, e.clientY);
+}, { passive: false });
+
+let panState = null;
+viewport.addEventListener("mousedown", (e) => {
+  if (e.button === 2) {
+    e.preventDefault();
+    panState = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY };
+    screenEl.classList.add("panning");
+    return;
+  }
+  if (e.button === 0 && !drawMode && !markerMode) {
+    if (e.target.closest(".el")) return;
+    panState = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY };
+    screenEl.classList.add("panning");
+    e.preventDefault();
+  }
+});
+document.addEventListener("mousemove", (e) => {
+  if (!panState) return;
+  panX = panState.startPanX + (e.clientX - panState.startX);
+  panY = panState.startPanY + (e.clientY - panState.startY);
+  applyTransform();
+});
+document.addEventListener("mouseup", () => {
+  if (panState) { panState = null; screenEl.classList.remove("panning"); }
+});
+viewport.addEventListener("contextmenu", (e) => e.preventDefault());
+
+document.getElementById("btnZoomIn").onclick = () => setZoom(zoom * 1.2);
+document.getElementById("btnZoomOut").onclick = () => setZoom(zoom / 1.2);
+document.getElementById("btnZoomReset").onclick = () => { zoom = 1; panX = 0; panY = 0; applyTransform(); updateFrame(); };
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key === "0") { e.preventDefault(); zoom = 1; panX = 0; panY = 0; applyTransform(); updateFrame(); }
+  if (e.key === "Escape") { selected.clear(); buildElementsPanel(); renderAll(); }
+});
+
+// ============================================================
+// ОТРИСОВКА
+// ============================================================
+let showPredicted = false;
+
+function renderAll() {
+  [...frame.querySelectorAll(".el, .marker, .marker-label, .box, .predicted-box, .drag-box, .el-mark")].forEach(n => n.remove());
+
+  if (showPredicted && !drawMode) {
+    const mini = data.find(d => d.name === "minimap");
+    if (mini && mini.enabled) {
+      const r = getRect(mini);
+      const el = document.createElement("div");
+      el.className = "predicted-box";
+      el.style.left = r.leftPct + "%"; el.style.top = r.topPct + "%";
+      el.style.width = r.wPct + "%"; el.style.height = r.hPct + "%";
+      const lbl = document.createElement("div");
+      lbl.className = "predicted-box-label";
+      lbl.textContent = `формула: x=${r.leftPx.toFixed(0)} w=${r.wPx.toFixed(0)}`;
+      el.appendChild(lbl); frame.appendChild(el);
+    }
+  }
+
+  Object.keys(boxes).forEach(key => {
+    const b = boxes[key];
+    const isActive = key === currentAspect;
+    const x = Math.min(b.x1, b.x2), y = Math.min(b.y1, b.y2);
+    const w = Math.abs(b.x2 - b.x1), h = Math.abs(b.y2 - b.y1);
+    const el = document.createElement("div");
+    el.className = "box";
+    el.style.left = (x / W_PHYS * 100) + "%";
+    el.style.top = (y / H_PHYS * 100) + "%";
+    el.style.width = (w / W_PHYS * 100) + "%";
+    el.style.height = (h / H_PHYS * 100) + "%";
+    if (!isActive) { el.style.opacity = "0.35"; el.style.borderColor = "#666"; }
+    const lbl = document.createElement("div");
+    lbl.className = "box-label";
+    lbl.innerHTML = `<b>${FORMATS[key].label}</b>  ` +
+      `<span class="key">x</span>=${x.toFixed(1)}  <span class="key">y</span>=${y.toFixed(1)}  ` +
+      `<span class="key">w</span>=${w.toFixed(1)}  <span class="key">h</span>=${h.toFixed(1)}`;
+    if (!isActive) lbl.style.background = "#444";
+    el.appendChild(lbl); frame.appendChild(el);
+  });
+
+  data.forEach(d => {
+    if (!d.enabled) return;
+    const r = getRect(d);
+    const el = document.createElement("div");
+    el.className = "el c-" + d.name + " draggable" + (selected.has(d.name) ? " group-selected" : "");
+    el.style.left = r.leftPct + "%"; el.style.top = r.topPct + "%";
+    el.style.width = r.wPct + "%"; el.style.height = r.hPct + "%";
+    el.dataset.name = d.name;
+    el.title = `${d.name}${isFixed(d.name) ? " [фикс.]" : ""}${isPassive(d.name) ? " [пассив.]" : ""}${selected.has(d.name) ? " [выбр.]" : ""}\n` +
+      `posX=${d.posX.toFixed(5)}  posY=${d.posY.toFixed(5)}\n` +
+      `sizeX=${d.sizeX.toFixed(5)}  sizeY=${d.sizeY.toFixed(6)}\n` +
+      `экран: left=${r.leftPx.toFixed(1)}  top=${r.topPx.toFixed(1)}  size=${r.wPx.toFixed(1)}×${r.hPx.toFixed(1)}`;
+    if (r.wPct > 4 && r.hPct > 2) {
+      const lbl = document.createElement("div");
+      lbl.className = "el-label"; lbl.textContent = d.name;
+      lbl.style.left = "3px"; lbl.style.top = "2px";
+      lbl.style.color = BASE_COLORS[d.name];
+      el.appendChild(lbl);
+    }
+    if (showMarks) {
+      const cm = document.createElement("div");
+      cm.className = "el-mark center"; el.appendChild(cm);
+      ["top", "bottom", "left", "right"].forEach(pos => {
+        const m = document.createElement("div");
+        m.className = "el-mark edge " + pos; el.appendChild(m);
+      });
+    }
+    el.addEventListener("mousedown", onDragStart);
+    frame.appendChild(el);
+  });
+
+  markers.forEach((m, i) => {
+    const dot = document.createElement("div");
+    dot.className = "marker";
+    dot.style.left = (m.x / W_PHYS * 100) + "%";
+    dot.style.top = (m.y / H_PHYS * 100) + "%";
+    frame.appendChild(dot);
+    const lbl = document.createElement("div");
+    lbl.className = "marker-label";
+    lbl.style.left = (m.x / W_PHYS * 100) + "%";
+    lbl.style.top = (m.y / H_PHYS * 100) + "%";
+    lbl.textContent = `#${i+1} ${m.x.toFixed(0)},${m.y.toFixed(0)}`;
+    frame.appendChild(lbl);
+  });
+
+  updateElementsPanel(); updateReadout(); updateXmlStatus();
+}
+
+// ============================================================
+// ПЕРЕТАСКИВАНИЕ ЭЛЕМЕНТОВ
+// ============================================================
+let dragElState = null;
+function onDragStart(e) {
+  if (drawMode || e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const name = e.currentTarget.dataset.name;
+  const d = data.find(x => x.name === name);
+  if (!d) return;
+  const vr = viewport.getBoundingClientRect();
+  const pxPerCssX = W_PHYS / (vr.width * zoom);
+  const pxPerCssY = H_PHYS / (vr.height * zoom);
+  let group;
+  if (selected.has(name) && selected.size > 1) {
+    group = Array.from(selected).map(n => {
+      const dd = data.find(x => x.name === n);
+      return { name: n, startRect: getRect(dd) };
+    });
+  } else group = [{ name, startRect: getRect(d) }];
+  dragElState = { primary: name, group, startMouseX: e.clientX, startMouseY: e.clientY, pxPerCssX, pxPerCssY };
+  e.currentTarget.classList.add("dragging");
+  document.addEventListener("mousemove", onDragMove);
+  document.addEventListener("mouseup", onDragEnd);
+}
+function onDragMove(e) {
+  if (!dragElState) return;
+  const dxPx = (e.clientX - dragElState.startMouseX) * dragElState.pxPerCssX;
+  const dyPx = (e.clientY - dragElState.startMouseY) * dragElState.pxPerCssY;
+  dragElState.group.forEach(item => {
+    const d = data.find(x => x.name === item.name);
+    if (!d) return;
+    setRect(d, item.startRect.leftPx + dxPx, item.startRect.topPx + dyPx);
+    const el = frame.querySelector(`.el[data-name="${item.name}"]`);
+    if (el) {
+      const rr = getRect(d);
+      el.style.left = rr.leftPct + "%"; el.style.top = rr.topPct + "%";
+    }
+  });
+  updateElementsPanel(); syncInputsFromData(); updateReadout();
+}
+function onDragEnd() {
+  document.removeEventListener("mousemove", onDragMove);
+  document.removeEventListener("mouseup", onDragEnd);
+  const el = frame.querySelector(".el.dragging");
+  if (el) el.classList.remove("dragging");
+  dragElState = null;
+}
+
+// ============================================================
+// ОБВОДКА
+// ============================================================
+let drawing = false, drawStart = null, drawRect = null;
+function cssToPhys(clientX, clientY) {
+  const vr = viewport.getBoundingClientRect();
+  const cx = clientX - vr.left, cy = clientY - vr.top;
+  const frameX = (cx - panX) / zoom, frameY = (cy - panY) / zoom;
+  return { px: frameX / vr.width * W_PHYS, py: frameY / vr.height * H_PHYS };
+}
+function startDraw(e) {
+  if (!drawMode || e.button !== 0) return;
+  const { px, py } = cssToPhys(e.clientX, e.clientY);
+  drawing = true; drawStart = { x: px, y: py };
+  drawRect = document.createElement("div");
+  drawRect.className = "drag-box";
+  drawRect.innerHTML = `<div class="drag-box-size">x=0 y=0 w=0 h=0</div>`;
+  frame.appendChild(drawRect);
+  e.preventDefault();
+}
+function moveDraw(e) {
+  if (!drawing) return;
+  const { px, py } = cssToPhys(e.clientX, e.clientY);
+  const x1 = Math.max(0, Math.min(W_PHYS, drawStart.x));
+  const y1 = Math.max(0, Math.min(H_PHYS, drawStart.y));
+  const x2 = Math.max(0, Math.min(W_PHYS, px));
+  const y2 = Math.max(0, Math.min(H_PHYS, py));
+  const left = Math.min(x1, x2), top = Math.min(y1, y2);
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  drawRect.style.left = (left / W_PHYS * 100) + "%";
+  drawRect.style.top = (top / H_PHYS * 100) + "%";
+  drawRect.style.width = (w / W_PHYS * 100) + "%";
+  drawRect.style.height = (h / H_PHYS * 100) + "%";
+  drawRect.querySelector(".drag-box-size").textContent =
+    `x=${left.toFixed(1)}  y=${top.toFixed(1)}  w=${w.toFixed(1)}  h=${h.toFixed(1)}`;
+}
+function endDraw(e) {
+  if (!drawing) return;
+  drawing = false;
+  const { px, py } = cssToPhys(e.clientX, e.clientY);
+  const x1 = Math.max(0, Math.min(W_PHYS, drawStart.x));
+  const y1 = Math.max(0, Math.min(H_PHYS, drawStart.y));
+  const x2 = Math.max(0, Math.min(W_PHYS, px));
+  const y2 = Math.max(0, Math.min(H_PHYS, py));
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  if (drawRect) { drawRect.remove(); drawRect = null; }
+  drawStart = null;
+  if (w < 5 || h < 5) return;
+  boxes[currentAspect] = { x1: Math.min(x1, x2), y1: Math.min(y1, y2), x2: Math.max(x1, x2), y2: Math.max(y1, y2) };
+  buildBoxesPanel(); renderAll();
+}
+viewport.addEventListener("mousedown", startDraw);
+document.addEventListener("mousemove", moveDraw);
+document.addEventListener("mouseup", endDraw);
+
+viewport.addEventListener("click", (e) => {
+  if (drawMode || dragElState || panState) return;
+  if (!markerMode) return;
+  if (e.target.closest(".el")) return;
+  const { px, py } = cssToPhys(e.clientX, e.clientY);
+  markers.push({ x: px, y: py });
+  renderAll();
+});
+
+// ============================================================
+// КНОПКИ
+// ============================================================
+const btnDraw = document.getElementById("btnDraw");
+function updateDrawBtn() {
+  btnDraw.textContent = drawMode ? "✏️ Обводка (вкл)" : "✏️ Обводка (выкл)";
+  btnDraw.classList.toggle("active", drawMode);
+  updateCursor();
+}
+btnDraw.addEventListener("click", () => { drawMode = !drawMode; updateDrawBtn(); renderAll(); });
+
+document.getElementById("btnClearAll").addEventListener("click", () => {
+  if (!confirm("Очистить все обводки?")) return;
+  boxes = {}; buildBoxesPanel(); renderAll();
+});
+
+const btnMarkerMode = document.getElementById("btnMarkerMode");
+function updateMarkerModeBtn() {
+  btnMarkerMode.textContent = markerMode ? "🎯 Ставить маркеры (вкл)" : "🎯 Ставить маркеры (выкл)";
+  btnMarkerMode.classList.toggle("active", markerMode);
+  updateCursor();
+}
+btnMarkerMode.addEventListener("click", () => { markerMode = !markerMode; updateMarkerModeBtn(); });
+
+document.getElementById("btnClearMarkers").addEventListener("click", () => {
+  if (!markers.length) return;
+  if (!confirm(`Удалить все маркеры (${markers.length})?`)) return;
+  markers = []; renderAll();
+});
+
+document.querySelectorAll('[data-kind="aspect"]').forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll('[data-kind="aspect"]').forEach(b => b.classList.toggle("active", b === btn));
+    currentAspect = btn.dataset.value;
+    updateFrame(); buildBoxesPanel(); renderAll();
+  });
+});
+
+document.getElementById("btnSelectNone").onclick = () => { selected.clear(); buildElementsPanel(); renderAll(); };
+document.getElementById("btnSelectAll").onclick = () => {
+  selected.clear(); data.forEach(d => selected.add(d.name));
+  buildElementsPanel(); renderAll();
+};
+
+const btnMarks = document.getElementById("btnMarks");
+btnMarks.addEventListener("click", () => { showMarks = !showMarks; btnMarks.classList.toggle("active", showMarks); renderAll(); });
+const btnCrosshair = document.getElementById("btnCrosshair");
+btnCrosshair.addEventListener("click", () => { const off = crosshair.classList.toggle("off"); btnCrosshair.classList.toggle("active", !off); });
+const btnPredicted = document.getElementById("btnPredicted");
+btnPredicted.addEventListener("click", () => { showPredicted = !showPredicted; btnPredicted.classList.toggle("active", showPredicted); renderAll(); });
+document.getElementById("btnEnableAll").onclick = () => { data.forEach(d => d.enabled = true); buildElementsPanel(); renderAll(); };
+document.getElementById("btnDisableAll").onclick = () => { data.forEach(d => d.enabled = false); buildElementsPanel(); renderAll(); };
+document.getElementById("btnReset").onclick = () => applyDefaults(true);
+
+function applyDefaults(keepVisibility = true) {
+  const oldEnabled = {};
+  data.forEach(d => oldEnabled[d.name] = d.enabled);
+  data = DEFAULTS.map(d => ({
+    ...d,
+    enabled: keepVisibility && oldEnabled.hasOwnProperty(d.name) ? oldEnabled[d.name] : !!STARTER_VISIBLE[d.name]
+  }));
+  buildElementsPanel(); buildInputsPanel(); renderAll();
+  showToast("Стандартные координаты применены");
+}
+document.getElementById("btnDefaults").onclick = () => applyDefaults(true);
+document.getElementById("btnDefaults2").onclick = () => applyDefaults(true);
+
+document.getElementById("btnResetToDefault").onclick = () => {
+  if (!confirm("Вернуть стандартный frontend.xml? Текущие координаты будут сброшены к стандартным.")) return;
+  fullXmlText = DEFAULT_FRONTEND_XML;
+  fullXmlName = "frontend.xml (стандарт)";
+  applyDefaults(true);
+  updateXmlStatus();
+  showToast("Стандартный frontend.xml восстановлен");
+};
+
+document.getElementById("btnApplyAll").onclick = () => applyInputs();
+document.getElementById("btnReloadAll").onclick = () => {
+  data.forEach(d => {
+    const def = DEFAULTS.find(x => x.name === d.name);
+    if (!def) return;
+    d.posX = def.posX; d.posY = def.posY; d.sizeX = def.sizeX; d.sizeY = def.sizeY;
+    d.alignX = def.alignX; d.alignY = def.alignY;
+  });
+  buildInputsPanel(); renderAll();
+};
+
+document.getElementById("btnBgOpen").addEventListener("click", () => bgInput.click());
+bgInput.addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  bgUrl = URL.createObjectURL(file);
+  frame.classList.remove("no-bg");
+  updateFrame();
+  document.getElementById("btnHideBg").textContent = "Скрыть фон";
+  showToast(`Фон: ${file.name}`);
+  e.target.value = "";
+});
+document.getElementById("btnHideBg").addEventListener("click", (e) => {
+  const hidden = frame.classList.toggle("no-bg");
+  e.target.textContent = hidden ? "Показать фон" : "Скрыть фон";
+});
+document.getElementById("btnDim").addEventListener("click", (e) => {
+  const on = !frame.classList.contains("no-dim");
+  frame.classList.toggle("no-dim", on);
+  e.target.classList.toggle("active", !on);
+});
+document.getElementById("btnToggleGrid").addEventListener("click", (e) => {
+  const on = !e.target.classList.toggle("active");
+  document.querySelector(".grid").style.display = on ? "none" : "block";
+  document.getElementById("gridFine").style.display = on ? "none" : "block";
+});
+document.getElementById("btnToggleRuler").addEventListener("click", (e) => {
+  const on = !e.target.classList.toggle("active");
+  document.getElementById("rulerX").style.display = on ? "none" : "block";
+  document.getElementById("rulerY").style.display = on ? "none" : "block";
+});
+
+// ============================================================
+// ИМПОРТ XML
+// ============================================================
+const inputXmlFile = document.getElementById("inputXmlFile");
+const xmlStatusDot = document.getElementById("xmlStatusDot");
+const xmlStatusText = document.getElementById("xmlStatusText");
+
+document.getElementById("btnImportXml").addEventListener("click", () => inputXmlFile.click());
+
+function updateXmlStatus() {
+  if (fullXmlText) {
+    xmlStatusDot.classList.add("on");
+    statusBar.classList.add("ready");
+    xmlStatusText.innerHTML =
+      `✓ Готов к экспорту: <span class="name">${fullXmlName}</span> ` +
+      `<span class="size">(${fullXmlText.length} симв.)</span>`;
+  } else {
+    xmlStatusDot.classList.remove("on");
+    xmlStatusText.innerHTML = `⚠️ XML не загружен`;
+  }
+}
+
+inputXmlFile.addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const text = ev.target.result;
+    fullXmlText = text;
+    fullXmlName = file.name;
+
+    const miniRe = /<minimap[^>]*>([\s\S]*?)<\/minimap>/;
+    const mm = text.match(miniRe);
+    if (!mm) {
+      showToast("Не найден блок <minimap>", true);
+      updateXmlStatus();
+      return;
+    }
+    const inner = mm[1];
+
+    const dataRe = /<data\s+name="([^"]+)"[^>]*?alignX="([^"]+)"[^>]*?alignY="([^"]+)"[^>]*?posX="([^"]+)"[^>]*?posY="([^"]+)"[^>]*?sizeX="([^"]+)"[^>]*?sizeY="([^"]+)"/g;
+    let match, count = 0;
+    while ((match = dataRe.exec(inner)) !== null) {
+      const [, name, alignX, alignY, posX, posY, sizeX, sizeY] = match;
+      let d = data.find(x => x.name === name);
+      if (!d) {
+        d = { name, alignX:"L", alignY:"B", posX:0, posY:0, sizeX:0, sizeY:0, enabled:false };
+        data.push(d);
+      }
+      d.alignX = alignX.trim(); d.alignY = alignY.trim();
+      d.posX = parseFloat(posX); d.posY = parseFloat(posY);
+      d.sizeX = parseFloat(sizeX); d.sizeY = parseFloat(sizeY);
+      count++;
+    }
+
+    buildElementsPanel(); buildInputsPanel();
+    syncInputsFromData(); updateElementsPanel(); renderAll(); updateXmlStatus();
+    showToast(`Загружен ${file.name}: импортировано ${count} элементов`);
+  };
+  reader.onerror = () => showToast("Ошибка чтения файла", true);
+  reader.readAsText(file, "utf-8");
+  e.target.value = "";
+});
+
+// ============================================================
+// ЭКСПОРТ
+// ============================================================
+function applyCoordsToXml(xmlText) {
+  const miniRe = /(<minimap\s+v="[^"]*"\s*>)([\s\S]*?)(<\/minimap>)/;
+  const mm = xmlText.match(miniRe);
+  if (!mm) return xmlText;
+
+  const blockOpen = mm[1];
+  const blockInner = mm[2];
+  const blockClose = mm[3];
+  const before = xmlText.substring(0, mm.index);
+  const after = xmlText.substring(mm.index + mm[0].length);
+
+  const newInner = blockInner.replace(
+    /<data\s+name="([^"]+)"([\s\S]*?)\/>/g,
+    (full, name, rest) => {
+      const d = data.find(x => x.name === name.trim());
+      if (!d) return full;
+
+      let newRest = rest
+        .replace(/(posX=")[^"]*(")/, `$1${fmtNum(d.posX)}$2`)
+        .replace(/(posY=")[^"]*(")/, `$1${fmtNum(d.posY)}$2`)
+        .replace(/(sizeX=")[^"]*(")/, `$1${fmtNum(d.sizeX)}$2`)
+        .replace(/(sizeY=")[^"]*(")/, `$1${fmtNum(d.sizeY)}$2`);
+
+      return `<data name="${name}"${newRest}/>`;
+    }
+  );
+
+  return before + blockOpen + newInner + blockClose + after;
+}
+
+function buildExportFile() {
+  return applyCoordsToXml(fullXmlText);
+}
+
+document.getElementById("btnPreviewExport").addEventListener("click", () => {
+  const out = buildExportFile();
+  const w = window.open("", "_blank");
+  if (!w) { showToast("Разрешите всплывающие окна", true); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Предпросмотр frontend.xml</title>
+    <style>body{margin:0;background:#0e1015;color:#9fe0a8;font-family:Consolas,monospace;font-size:11px;line-height:1.4;}
+    pre{padding:20px;white-space:pre-wrap;word-break:break-all;}</style></head><body>
+    <pre>${out.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>
+    </body></html>`);
+  w.document.close();
+});
+
+document.getElementById("btnExportXmlFile").addEventListener("click", () => {
+  const out = buildExportFile();
+  const blob = new Blob([out], { type: "text/xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "frontend.xml";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Скачано: frontend.xml (${out.length} симв.)`);
+});
+
+// ============================================================
+// СОХРАНЕНИЕ / ЗАГРУЗКА
+// ============================================================
+function collectState() {
+  return {
+    version: 21, aspect: currentAspect, zoom, panX, panY, markerMode,
+    selected: Array.from(selected),
+    elements: data.map(d => ({
+      name: d.name, alignX: d.alignX, alignY: d.alignY,
+      posX: d.posX, posY: d.posY, sizeX: d.sizeX, sizeY: d.sizeY, enabled: d.enabled
+    })),
+    boxes, markers
+  };
+}
+function applyState(s) {
+  if (!s || !s.elements) return false;
+  s.elements.forEach(sd => {
+    const d = data.find(x => x.name === sd.name);
+    if (!d) return;
+    d.alignX = sd.alignX; d.alignY = sd.alignY;
+    d.posX = sd.posX; d.posY = sd.posY;
+    d.sizeX = sd.sizeX; d.sizeY = sd.sizeY;
+    if (typeof sd.enabled === "boolean") d.enabled = sd.enabled;
+  });
+  if (s.aspect) {
+    currentAspect = s.aspect;
+    document.querySelectorAll('[data-kind="aspect"]').forEach(b => {
+      b.classList.toggle("active", b.dataset.value === s.aspect);
+    });
+  }
+  if (typeof s.zoom === "number") zoom = Math.max(MIN_ZOOM, s.zoom);
+  if (typeof s.panX === "number") panX = s.panX;
+  if (typeof s.panY === "number") panY = s.panY;
+  if (typeof s.markerMode === "boolean") markerMode = s.markerMode;
+  if (Array.isArray(s.selected)) selected = new Set(s.selected);
+  if (s.boxes) boxes = s.boxes;
+  if (s.markers) markers = s.markers;
+  buildElementsPanel(); buildInputsPanel(); buildBoxesPanel();
+  updateFrame(); applyTransform(); updateMarkerModeBtn(); renderAll();
+  return true;
+}
+
+document.getElementById("btnSave").addEventListener("click", () => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState())); showToast("Сохранено"); }
+  catch (e) { showToast("Ошибка: " + e.message, true); }
+});
+document.getElementById("btnLoad").addEventListener("click", () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { showToast("Нет сохранения", true); return; }
+    applyState(JSON.parse(raw)); showToast("Загружено");
+  } catch (e) { showToast("Ошибка: " + e.message, true); }
+});
+
+// ============================================================
+// READOUT
+// ============================================================
+function updateReadout() {
+  const f = FORMATS[currentAspect];
+  const dz = W_PHYS - H_PHYS * f.ar;
+  const lines = [];
+  if (selected.size > 0) {
+    lines.push(`<div class="sel-info">Выделено для группового перемещения: <b>${Array.from(selected).join(", ")}</b> (${selected.size})</div>`);
+  }
+  lines.push(`<b>Формат:</b> ${f.label}  <span class="hint">aspect=${f.ar.toFixed(4)}, deadzone=${dz.toFixed(0)}px</span>`);
+  lines.push(`<b>Зум:</b> ${Math.round(zoom*100)}%  |  pan: ${panX.toFixed(0)}, ${panY.toFixed(0)}  |  маркеры: ${markerMode ? "вкл" : "выкл"}  |  обводка: ${drawMode ? "вкл" : "выкл"}`);
+  lines.push(`<b>XML:</b> ${fullXmlName}`);
+
+  lines.push(`<br><b>Обводки (x / y / w / h):</b>`);
+  Object.keys(FORMATS).forEach(key => {
+    const b = boxes[key];
+    const isActive = key === currentAspect;
+    if (b) {
+      const x = Math.min(b.x1, b.x2), y = Math.min(b.y1, b.y2);
+      const w = Math.abs(b.x2 - b.x1), h = Math.abs(b.y2 - b.y1);
+      lines.push(`<div class="box-line ${isActive ? "active" : ""}">` +
+        `<span class="fmt">${FORMATS[key].label}</span>  ` +
+        `x=<code>${x.toFixed(1)}</code>  y=<code>${y.toFixed(1)}</code>  ` +
+        `w=<code>${w.toFixed(1)}</code>  h=<code>${h.toFixed(1)}</code>  ` +
+        `<span class="hint">right=${(x+w).toFixed(1)}, bottom=${(y+h).toFixed(1)}</span></div>`);
+    } else {
+      lines.push(`<div class="box-line none"><span class="fmt">${FORMATS[key].label}</span>  — обводки нет</div>`);
+    }
+  });
+
+  lines.push(`<br><b>Активные элементы:</b>`);
+  data.filter(d => d.enabled).forEach(d => {
+    const r = getRect(d);
+    const isSel = selected.has(d.name);
+    const tag = isFixed(d.name) ? `<span style="color:#8ab4f8">[фикс]</span> ` :
+                isPassive(d.name) ? `<span style="color:#999">[пассив]</span> ` : "";
+    const selTag = isSel ? `<span style="color:#ffcf5c">[выбр]</span> ` : "";
+    lines.push(`${tag}${selTag}${d.name.padEnd(14)}  x=<code>${r.leftPx.toFixed(1)}</code>  y=<code>${r.topPx.toFixed(1)}</code>  ` +
+      `w=<code>${r.wPx.toFixed(1)}</code>  h=<code>${r.hPx.toFixed(1)}</code>`);
+  });
+  readout.innerHTML = lines.join("<br>");
+}
+
+// ============================================================
+// ВНЕШНИЙ ВИД
+// ============================================================
+function applyStyleToDOM() {
+  const styleTag = document.getElementById("dynamic-style") || (() => {
+    const s = document.createElement("style");
+    s.id = "dynamic-style";
+    document.head.appendChild(s);
+    return s;
+  })();
+
+  const c = BASE_COLORS;
+  const fill = (hex, a) => rgbaFromHex(hex, Math.max(0, Math.min(1, a)));
+
+  styleTag.textContent = `
+    .el { border-width: ${styleState.borderWidth}px !important; }
+    .el.c-minimap       { background-color: ${fill(c.minimap, styleState.fillAlpha)} !important; border-color: ${fill(c.minimap, styleState.borderAlpha)} !important; }
+    .el.c-minimap_mask  { background-color: rgba(0,0,0,0) !important; border-color: ${fill(c.minimap_mask, styleState.borderAlpha)} !important; }
+    .el.c-minimap_blur  { background-color: ${fill(c.minimap_blur, styleState.fillAlpha * 0.4)} !important; border-color: ${fill(c.minimap_blur, styleState.borderAlpha)} !important; }
+    .el.c-bigmap        { background-color: ${fill(c.bigmap, styleState.fillAlpha)} !important; border-color: ${fill(c.bigmap, styleState.borderAlpha)} !important; }
+    .el.c-bigmap_mask   { background-color: rgba(0,0,0,0) !important; border-color: ${fill(c.bigmap_mask, styleState.borderAlpha)} !important; }
+    .el.c-bigmap_blur   { background-color: ${fill(c.bigmap_blur, styleState.fillAlpha * 0.4)} !important; border-color: ${fill(c.bigmap_blur, styleState.borderAlpha)} !important; }
+    .el.c-pausemap      { background-color: ${fill(c.pausemap, styleState.fillAlpha * 0.5)} !important; border-color: ${fill(c.pausemap, styleState.borderAlpha)} !important; }
+    .el.c-pausemap_mask { background-color: rgba(0,0,0,0) !important; border-color: ${fill(c.pausemap_mask, styleState.borderAlpha)} !important; }
+    .el.c-gallery       { background-color: ${fill(c.gallery, styleState.fillAlpha * 0.5)} !important; border-color: ${fill(c.gallery, styleState.borderAlpha)} !important; }
+    .el.c-gallery_mask  { background-color: rgba(0,0,0,0) !important; border-color: ${fill(c.gallery_mask, styleState.borderAlpha)} !important; }
+    .el.c-golf_courses  { background-color: ${fill(c.golf_courses, styleState.fillAlpha * 0.5)} !important; border-color: ${fill(c.golf_courses, styleState.borderAlpha)} !important; }
+
+    .el-mark.center {
+      --center-half: ${styleState.centerSize / 2}px;
+      opacity: ${styleState.centerAlpha} !important;
+    }
+    .el-mark.center::before,
+    .el-mark.center::after {
+      opacity: ${styleState.centerAlpha} !important;
+      background: rgba(255,59,59,${styleState.centerAlpha}) !important;
+    }
+
+    .el-mark.edge {
+      width: ${styleState.edgeSize}px !important;
+      height: ${styleState.edgeSize}px !important;
+      opacity: ${styleState.edgeAlpha} !important;
+      box-shadow: 0 0 0 ${Math.max(1, styleState.edgeSize / 4)}px rgba(0,0,0,.85), 0 0 ${styleState.edgeSize * 0.7}px rgba(255,207,92,.7) !important;
+    }
+    .marker {
+      width: ${styleState.markerSize}px !important;
+      height: ${styleState.markerSize}px !important;
+      margin: ${-styleState.markerSize/2}px 0 0 ${-styleState.markerSize/2}px !important;
+      opacity: ${styleState.markerAlpha} !important;
+    }
+    .marker-label { opacity: ${styleState.markerAlpha} !important; }
+    .crosshair {
+      width: ${styleState.crossSize}px !important;
+      height: ${styleState.crossSize}px !important;
+      margin: ${-styleState.crossSize/2}px 0 0 ${-styleState.crossSize/2}px !important;
+      opacity: ${styleState.crossAlpha} !important;
+    }
+    .crosshair::before {
+      width: ${styleState.crossWidth}px !important;
+      margin-left: ${-styleState.crossWidth/2}px !important;
+    }
+    .crosshair::after {
+      height: ${styleState.crossWidth}px !important;
+      margin-top: ${-styleState.crossWidth/2}px !important;
+    }
+  `;
+}
+
+function saveStyleToStorage() { try { localStorage.setItem(STORAGE_STYLE_KEY, JSON.stringify(styleState)); } catch(e) {} }
+function loadStyleFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_STYLE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    Object.keys(styleState).forEach(k => { if (typeof s[k] === "number") styleState[k] = s[k]; });
+  } catch(e) {}
+}
+
+function bindStyleSlider(id, key, isPercent, suffix) {
+  const input = document.getElementById("sl-" + id);
+  const display = document.getElementById("val-" + id);
+  if (!input || !display) return;
+  const initVal = isPercent ? Math.round(styleState[key] * 100) : styleState[key];
+  input.value = initVal;
+  display.textContent = initVal + (suffix || (isPercent ? "%" : ""));
+  input.addEventListener("input", () => {
+    const v = parseInt(input.value, 10);
+    styleState[key] = isPercent ? v / 100 : v;
+    display.textContent = v + (suffix || (isPercent ? "%" : ""));
+    applyStyleToDOM();
+    saveStyleToStorage();
+  });
+}
+
+// ============================================================
+// МЕНЮ НАСТРОЕК
+// ============================================================
+function buildSettingsMenu() {
+  const container = document.getElementById("btnToggles");
+  container.innerHTML = "";
+
+  const byGroup = {};
+  BUTTONS_CONFIG.forEach(b => { if (!byGroup[b.group]) byGroup[b.group] = []; byGroup[b.group].push(b); });
+
+  Object.keys(BYGROUP_TITLES_ORDER).forEach(groupKey => {
+    const title = BYGROUP_TITLES_ORDER[groupKey];
+    const items = byGroup[groupKey];
+    if (!items || !items.length) return;
+
+    const section = document.createElement("div");
+    section.style.marginBottom = "10px";
+
+    const h = document.createElement("h3");
+    h.textContent = title;
+    h.style.margin = "0 0 4px";
+    h.style.fontSize = "11px";
+    h.style.color = "var(--panel-head)";
+    section.appendChild(h);
+
+    items.forEach(b => {
+      const row = document.createElement("label");
+      row.className = "row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!uiState.buttons[b.id];
+      cb.addEventListener("change", () => {
+        uiState.buttons[b.id] = cb.checked;
+        applyUIState(); saveUIState();
+      });
+      row.appendChild(cb);
+      const span = document.createElement("span");
+      span.textContent = b.label;
+      row.appendChild(span);
+      section.appendChild(row);
+    });
+
+    container.appendChild(section);
+  });
+}
+
+function bindPanelToggles() {
+  const map = {
+    "chk-panel-elements": "elements",
+    "chk-panel-manual":   "manual",
+    "chk-panel-boxes":    "boxes",
+    "chk-panel-style":    "style"
+  };
+  Object.keys(map).forEach(id => {
+    const chk = document.getElementById(id);
+    const key = map[id];
+    if (!chk) return;
+    chk.checked = !!uiState.panels[key];
+    chk.addEventListener("change", () => {
+      uiState.panels[key] = chk.checked;
+      applyUIState(); saveUIState();
+    });
+  });
+}
+
+document.getElementById("btnSettings").addEventListener("click", () => {
+  buildSettingsMenu();
+  bindPanelToggles();
+  document.getElementById("settingsModal").classList.add("on");
+});
+document.getElementById("btnSettingsClose").addEventListener("click", () => {
+  document.getElementById("settingsModal").classList.remove("on");
+});
+document.getElementById("settingsModal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("settingsModal")) {
+    document.getElementById("settingsModal").classList.remove("on");
+  }
+});
+document.getElementById("btnSettingsReset").addEventListener("click", () => {
+  BUTTONS_CONFIG.forEach(b => uiState.buttons[b.id] = true);
+  uiState.panels = { elements: true, manual: true, style: true, boxes: true };
+  buildSettingsMenu(); bindPanelToggles(); applyUIState(); saveUIState();
+  showToast("Настройки сброшены");
+});
+
+// ============================================================
+// ЗАЩИТА ОТ ПКМ / DEVTOOLS
+// ============================================================
+document.addEventListener("contextmenu", (e) => {
+  // ПКМ полностью запрещён везде, включая color-инпуты
+  e.preventDefault();
+  e.stopPropagation();
+  return false;
+}, true);
+
+// Открытие системного color-пикера: ЛКМ по свотчу (showPicker).
+// Двойной клик — на всякий случай.
+function initColorInputSafety() {
+  document.querySelectorAll('input[type="color"]').forEach(inp => {
+    inp.addEventListener("mousedown", (e) => {
+      if (e.button === 2) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    inp.addEventListener("click", (e) => {
+      try { inp.showPicker && inp.showPicker(); } catch(_) {}
+    });
+    inp.addEventListener("dblclick", (e) => {
+      try { inp.showPicker && inp.showPicker(); } catch(_) {}
+    });
+    inp.addEventListener("dragstart", (e) => e.preventDefault());
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "F12" || e.keyCode === 123) { e.preventDefault(); return false; }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey &&
+      ["I","i","J","j","C","c","K","k"].includes(e.key)) {
+    e.preventDefault(); return false;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "u" || e.key === "U")) {
+    e.preventDefault(); return false;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+    e.preventDefault(); return false;
+  }
+});
+
+document.addEventListener("dragstart", (e) => {
+  if (e.target.tagName === "IMG") e.preventDefault();
+});
+
+// ============================================================
+// СТАРТ
+// ============================================================
+loadStyleFromStorage();
+loadUIState();
+loadCollapseState();
+loadPanelOrder();
+
+const savedPanels = loadPanelColors();
+applyPanelColors(savedPanels || COLOR_PRESETS[0], false);
+
+applyBgColor(loadBgColor(), false);
+applyScreenColor(loadScreenColor(), false);
+
+const savedWeb = loadWebColor();
+if (savedWeb) setWebColor(savedWeb, false);
+else webColorUser = null;
+
+initColorControls();
+initColorInputSafety();
+
+buildRulers();
+buildElementsPanel();
+buildInputsPanel();
+buildBoxesPanel();
+updateFrame();
+updateDrawBtn();
+updateMarkerModeBtn();
+applyTransform();
+applyStyleToDOM();
+applyUIState();
+applyCollapseState();
+bindCollapseHandlers();
+initPanelDrag();
+
+bindStyleSlider("fill-alpha", "fillAlpha", true);
+bindStyleSlider("border-alpha", "borderAlpha", true);
+bindStyleSlider("border-width", "borderWidth", false, " px");
+bindStyleSlider("center-alpha", "centerAlpha", true);
+bindStyleSlider("center-size", "centerSize", false, " px");
+bindStyleSlider("edge-alpha", "edgeAlpha", true);
+bindStyleSlider("edge-size", "edgeSize", false, " px");
+bindStyleSlider("marker-alpha", "markerAlpha", true);
+bindStyleSlider("marker-size", "markerSize", false, " px");
+bindStyleSlider("cross-alpha", "crossAlpha", true);
+bindStyleSlider("cross-size", "crossSize", false, " px");
+bindStyleSlider("cross-width", "crossWidth", false, " px");
+
+syncInputsFromData();
+renderAll();
+updateXmlStatus();
+
+try {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) applyState(JSON.parse(raw));
+} catch(e) {}
+</script>
+</body>
+</html>
