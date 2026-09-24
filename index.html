@@ -413,7 +413,6 @@
   .ruler-x .tick-label { position: absolute; top: 6px; transform: translateX(-50%); }
   .ruler-y .tick-label { position: absolute; left: 8px; transform: translateY(-50%); }
 
-  /* -------- ПРИЦЕЛ (без точки в центре) -------- */
   .crosshair {
     position: absolute; left: 50%; top: 50%;
     width: 32px; height: 32px; margin: -16px 0 0 -16px;
@@ -427,7 +426,6 @@
   .crosshair::before { left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; }
   .crosshair::after { top: 50%; left: 0; right: 0; height: 2px; margin-top: -1px; }
 
-  /* -------- МЕТКА ЦЕНТРА — только крестик -------- */
   .el-mark { position: absolute; pointer-events: none; z-index: 50; }
   .el-mark.center {
     left: 50%; top: 50%;
@@ -453,7 +451,6 @@
     margin-top: -0.5px;
   }
 
-  /* -------- ТОЧКИ РЁБЕР — центр ровно на границе -------- */
   .el-mark.edge {
     width: 6px; height: 6px;
     border-radius: 50%; background: #ffcf5c;
@@ -606,6 +603,11 @@
   }
   .settings-actions button:hover { background: #3d7cef; }
   .settings-actions button.secondary { background: var(--panel-bg-solid); border-color: var(--panel-border-soft); color: #ccc; }
+
+  /* --- кнопка fullscreen --- */
+  #btnFullscreen { background: #1e3a4d; border-color: #3c9ad9; color: #c0e0f0; }
+  #btnFullscreen:hover { background: #2a4a5e; }
+  #btnFullscreen.active { background: #2d6cdf; border-color: #4a8aff; color: #fff; }
 </style>
 </head>
 <body>
@@ -674,6 +676,9 @@
       <button id="btnHideBg" data-btn-group="bg">Скрыть фон</button>
       <button id="btnToggleGrid" class="active" data-btn-group="bg">Сетка</button>
       <button id="btnToggleRuler" class="active" data-btn-group="bg">Линейка</button>
+
+      <span class="sep" data-btn-group="fullscreen"></span>
+      <button id="btnFullscreen" data-btn-group="fullscreen">🖥 Полный экран</button>
 
       <span class="sep"></span>
       <button id="btnSettings" class="purple" title="Скрыть/показать кнопки и настроить внешний вид">⚙️ Настройки</button>
@@ -1021,10 +1026,10 @@
 // СТАНДАРТНЫЙ frontend.xml
 // ============================================================
 const DEFAULT_FRONTEND_XML = `<!-- -------------------------------------------------------------->
-<!--                                                             -->
-<!-- Name:       frontend.xml                                    -->
-<!-- My Discord: wayz1t                                          -->
-<!--                                                             -->
+<!--                                                                                                  -->
+<!-- Name:       frontend.xml                                                          -->
+<!-- My Discord: wayz1t                                                                -->
+<!--                                                                                                  -->
 <!-- -------------------------------------------------------------->
 
 
@@ -1526,15 +1531,15 @@ const DEFAULT_FRONTEND_XML = `<!-- ---------------------------------------------
 // КОНСТАНТЫ
 // ============================================================
 const W_PHYS = 1920, H_PHYS = 1080;
-const STORAGE_KEY = "minimap_full_v21";
+const STORAGE_KEY = "minimap_full_v22";
 const STORAGE_STYLE_KEY = "minimap_style_v1";
 const STORAGE_UI_KEY = "minimap_ui_v1";
 const STORAGE_COLLAPSE_KEY = "minimap_collapse_v1";
 const STORAGE_ORDER_KEY = "minimap_panel_order_v1";
-const STORAGE_BG_COLOR = "minimap_bg_color_v5";
-const STORAGE_SCREEN_COLOR = "minimap_screen_color_v5";
-const STORAGE_WEB_COLOR = "minimap_web_color_v5";
-const STORAGE_PANEL_COLORS = "minimap_panel_colors_v5";
+const STORAGE_BG_COLOR = "minimap_bg_color_v6";
+const STORAGE_SCREEN_COLOR = "minimap_screen_color_v6";
+const STORAGE_WEB_COLOR = "minimap_web_color_v6";
+const STORAGE_PANEL_COLORS = "minimap_panel_colors_v6";
 const MIN_ZOOM = 1.0;
 const MAX_ZOOM = 8.0;
 
@@ -1676,7 +1681,8 @@ const BUTTONS_CONFIG = [
   { id: "btnDim",        group: "bg", label: "Затемнить" },
   { id: "btnHideBg",     group: "bg", label: "Скрыть фон" },
   { id: "btnToggleGrid", group: "bg", label: "Сетка" },
-  { id: "btnToggleRuler",group: "bg", label: "Линейка" }
+  { id: "btnToggleRuler",group: "bg", label: "Линейка" },
+  { id: "btnFullscreen", group: "fullscreen", label: "🖥 Полный экран" }
 ];
 
 const BYGROUP_TITLES_ORDER = {
@@ -1687,7 +1693,8 @@ const BYGROUP_TITLES_ORDER = {
   select: "Выделение",
   view:   "Метки, прицел, формула",
   toggle: "Включение / выключение",
-  bg:     "Фон, сетка, линейка"
+  bg:     "Фон, сетка, линейка",
+  fullscreen: "Полноэкранный режим"
 };
 
 // ============================================================
@@ -1982,6 +1989,35 @@ function initColorControls() {
     });
   }
 }
+
+// ============================================================
+// ПОЛНОЭКРАННЫЙ РЕЖИМ
+// ============================================================
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function toggleFullscreen() {
+  if (!isFullscreen()) {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) req.call(el).catch(() => {});
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (exit) exit.call(document).catch(() => {});
+  }
+}
+
+function updateFullscreenButton() {
+  const btn = document.getElementById("btnFullscreen");
+  if (!btn) return;
+  const on = isFullscreen();
+  btn.classList.toggle("active", on);
+  btn.textContent = on ? "🖥 Выйти из полного экрана" : "🖥 Полный экран";
+}
+
+document.addEventListener("fullscreenchange", updateFullscreenButton);
+document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 
 // ============================================================
 // ПЕРЕТАСКИВАНИЕ ПАНЕЛЕЙ
@@ -2446,9 +2482,12 @@ viewport.addEventListener("contextmenu", (e) => e.preventDefault());
 document.getElementById("btnZoomIn").onclick = () => setZoom(zoom * 1.2);
 document.getElementById("btnZoomOut").onclick = () => setZoom(zoom / 1.2);
 document.getElementById("btnZoomReset").onclick = () => { zoom = 1; panX = 0; panY = 0; applyTransform(); updateFrame(); };
+
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.key === "0") { e.preventDefault(); zoom = 1; panX = 0; panY = 0; applyTransform(); updateFrame(); }
-  if (e.key === "Escape") { selected.clear(); buildElementsPanel(); renderAll(); }
+  if (e.key === "Escape" && !isFullscreen()) { selected.clear(); buildElementsPanel(); renderAll(); }
+  // F11 — полноэкранный режим
+  if (e.key === "F11") { e.preventDefault(); toggleFullscreen(); }
 });
 
 // ============================================================
@@ -2710,6 +2749,9 @@ document.getElementById("btnEnableAll").onclick = () => { data.forEach(d => d.en
 document.getElementById("btnDisableAll").onclick = () => { data.forEach(d => d.enabled = false); buildElementsPanel(); renderAll(); };
 document.getElementById("btnReset").onclick = () => applyDefaults(true);
 
+// Fullscreen button
+document.getElementById("btnFullscreen").onclick = () => toggleFullscreen();
+
 function applyDefaults(keepVisibility = true) {
   const oldEnabled = {};
   data.forEach(d => oldEnabled[d.name] = d.enabled);
@@ -2877,14 +2919,38 @@ function buildExportFile() {
 
 document.getElementById("btnPreviewExport").addEventListener("click", () => {
   const out = buildExportFile();
-  const w = window.open("", "_blank");
-  if (!w) { showToast("Разрешите всплывающие окна", true); return; }
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Предпросмотр frontend.xml</title>
-    <style>body{margin:0;background:#0e1015;color:#9fe0a8;font-family:Consolas,monospace;font-size:11px;line-height:1.4;}
-    pre{padding:20px;white-space:pre-wrap;word-break:break-all;}</style></head><body>
+
+  const previewHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Предпросмотр frontend.xml</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0e1015;
+        color: #9fe0a8;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      pre {
+        padding: 24px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head><body>
     <pre>${out.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>
-    </body></html>`);
-  w.document.close();
+  </body></html>`;
+
+  // В Electron — открываем отдельным окном
+  if (window.electronAPI && window.electronAPI.openPreview) {
+    window.electronAPI.openPreview(previewHtml);
+  } else {
+    // Fallback для обычного браузера
+    const w = window.open("", "_blank");
+    if (!w) { showToast("Разрешите всплывающие окна", true); return; }
+    w.document.write(previewHtml);
+    w.document.close();
+  }
 });
 
 document.getElementById("btnExportXmlFile").addEventListener("click", () => {
@@ -2906,7 +2972,7 @@ document.getElementById("btnExportXmlFile").addEventListener("click", () => {
 // ============================================================
 function collectState() {
   return {
-    version: 21, aspect: currentAspect, zoom, panX, panY, markerMode,
+    version: 22, aspect: currentAspect, zoom, panX, panY, markerMode,
     selected: Array.from(selected),
     elements: data.map(d => ({
       name: d.name, alignX: d.alignX, alignY: d.alignY,
@@ -3182,14 +3248,11 @@ document.getElementById("btnSettingsReset").addEventListener("click", () => {
 // ЗАЩИТА ОТ ПКМ / DEVTOOLS
 // ============================================================
 document.addEventListener("contextmenu", (e) => {
-  // ПКМ полностью запрещён везде, включая color-инпуты
   e.preventDefault();
   e.stopPropagation();
   return false;
 }, true);
 
-// Открытие системного color-пикера: ЛКМ по свотчу (showPicker).
-// Двойной клик — на всякий случай.
 function initColorInputSafety() {
   document.querySelectorAll('input[type="color"]').forEach(inp => {
     inp.addEventListener("mousedown", (e) => {
@@ -3251,6 +3314,7 @@ buildBoxesPanel();
 updateFrame();
 updateDrawBtn();
 updateMarkerModeBtn();
+updateFullscreenButton();
 applyTransform();
 applyStyleToDOM();
 applyUIState();
